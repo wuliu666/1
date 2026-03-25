@@ -1,0 +1,12 @@
+{
+    "admin_666": {
+        "status": "active",
+        "note": "超级管理员",
+        "is_deleted": false
+    },
+    "__GLOBAL_CONFIG__": {
+        "gemini_key": "",
+        "geeknow_key": "sk-Ok0LrU1syxi5hbDQLOxXtYj2EJtN1PPIurh07UuUObllLeAJ",
+        "grsai_key": ""
+    }
+}
