@@ -30,6 +30,12 @@ def init_db():
     c.execute('''CREATE TABLE IF NOT EXISTS user_chats (
         user_key TEXT PRIMARY KEY, chat_data TEXT
     )''')
+    c.execute('''CREATE TABLE IF NOT EXISTS audit_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_key TEXT,
+        action TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )''')
     conn.commit()
     conn.close()
 init_db()
@@ -766,6 +772,39 @@ def hard_delete():
         save_keys(keys)
         return jsonify({"success": True})
     return jsonify({"error": "操作失败"}), 404
+
+@app.route('/api/log_action', methods=['POST'])
+def log_action():
+    data = request.json
+    user_key = data.get('user_key', 'System')
+    action = data.get('action', '')
+    if action:
+        conn = sqlite3.connect(DB_FILE)
+        c = conn.cursor()
+        c.execute("INSERT INTO audit_logs (user_key, action) VALUES (?, ?)", (user_key, action))
+        conn.commit()
+        conn.close()
+    return jsonify({"success": True})
+
+@app.route('/admin/get_logs', methods=['POST'])
+def get_logs():
+    if request.json.get('admin_key') != MASTER_KEY: return jsonify({"error": "无权"}), 403
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute("SELECT user_key, action, datetime(created_at, 'localtime') as time FROM audit_logs ORDER BY id DESC LIMIT 200")
+    rows = [{"user": r[0], "action": r[1], "time": r[2]} for r in c.fetchall()]
+    conn.close()
+    return jsonify({"success": True, "logs": rows})
+
+@app.route('/admin/clear_logs', methods=['POST'])
+def clear_logs():
+    if request.json.get('admin_key') != MASTER_KEY: return jsonify({"error": "无权"}), 403
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute("DELETE FROM audit_logs")
+    conn.commit()
+    conn.close()
+    return jsonify({"success": True})
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)

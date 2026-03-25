@@ -13,7 +13,6 @@ let currentUploadedImageBase64 = null; let currentSelectedRatioText = '16:9'; le
 let teamAssets = []; let personalAssets = []; let currentAssetFilter = 'all'; let currentLibraryMode = 'team'; 
 let editingAssetId = null; let isBulkMode = false; let selectedAssetIds = new Set();
 
-let auditLogs = JSON.parse(localStorage.getItem('sys_audit_logs')) || [];
 let userUsages = JSON.parse(localStorage.getItem('sys_user_usages')) || {};
 
 let dynamicModels = JSON.parse(localStorage.getItem('sys_dynamic_models')) || {
@@ -23,7 +22,9 @@ let dynamicModels = JSON.parse(localStorage.getItem('sys_dynamic_models')) || {
     image: [ {id:'nanopro', name:'👑 Nano Banana Pro'}, {id:'nano2', name:'🍌 Nano Banana 2'} ]
 };
 
-function addAuditLog(action, user = currentUserKey) { const time = new Date().toLocaleString('zh-CN', { hour12: false }); auditLogs.unshift({ time, user: user || 'System', action }); if(auditLogs.length > 100) auditLogs.pop(); localStorage.setItem('sys_audit_logs', JSON.stringify(auditLogs)); }
+function addAuditLog(action, user = currentUserKey) { 
+    fetch(`${API_BASE_URL}/api/log_action`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({user_key: user || 'System', action: action}) }).catch(()=>{}); 
+}
 function getUserUsage(key) { if(!userUsages[key]) userUsages[key] = { images: 0, limit: 1000 }; return userUsages[key]; }
 function incrementUsage(key) { let u = getUserUsage(key); u.images += 1; localStorage.setItem('sys_user_usages', JSON.stringify(userUsages)); }
 
@@ -415,7 +416,32 @@ function saveQuota() { const val = parseInt(document.getElementById('quotaInput'
 function renderAdminModels() { const source = document.getElementById('adminApiFilter').value; const tl = document.getElementById('textModelList'); const il = document.getElementById('imageModelList'); tl.innerHTML = ''; il.innerHTML = ''; if(dynamicModels[source]) { dynamicModels[source].forEach(m => tl.innerHTML += `<div class="model-item-row"><span>${m.name} (${m.id})</span><button class="action-btn delete-action" style="font-size:12px;" onclick="removeModel('text', '${m.id}')" title="移除此模型">🗑️</button></div>`); } if(dynamicModels.image) { dynamicModels.image.forEach(m => il.innerHTML += `<div class="model-item-row"><span>${m.name} (${m.id})</span><button class="action-btn delete-action" style="font-size:12px;" onclick="removeModel('image', '${m.id}')" title="移除此模型">🗑️</button></div>`); } }
 function addModel(type) { if (type === 'image') { const id = document.getElementById('newImageModelId').value.trim(); const name = document.getElementById('newImageModelName').value.trim(); if(!id || !name) return alert("必填"); dynamicModels.image.push({id, name}); document.getElementById('newImageModelId').value = ''; document.getElementById('newImageModelName').value = ''; } else { const source = document.getElementById('adminApiFilter').value; const id = document.getElementById('newTextModelId').value.trim(); const name = document.getElementById('newTextModelName').value.trim(); if(!id || !name) return alert("必填"); if(!dynamicModels[source]) dynamicModels[source] = []; dynamicModels[source].push({id, name}); document.getElementById('newTextModelId').value = ''; document.getElementById('newTextModelName').value = ''; } localStorage.setItem('sys_dynamic_models', JSON.stringify(dynamicModels)); renderAdminModels(); onApiSourceChange(); loadImageModelsToUI(); }
 function removeModel(type, id) { const source = type === 'image' ? 'image' : document.getElementById('adminApiFilter').value; if(dynamicModels[source].length <= 1) return alert("至少保留一个模型"); dynamicModels[source] = dynamicModels[source].filter(m => m.id !== id); localStorage.setItem('sys_dynamic_models', JSON.stringify(dynamicModels)); renderAdminModels(); onApiSourceChange(); loadImageModelsToUI(); }
-function renderAuditLogs() { const tb = document.getElementById('auditLogTableBody'); tb.innerHTML = ''; auditLogs.forEach(l => { tb.innerHTML += `<tr><td style="padding: 8px; border-bottom: 1px solid var(--border-color); color: var(--text-secondary);">${l.time}</td><td style="padding: 8px; border-bottom: 1px solid var(--border-color); font-family: monospace;">${l.user.substring(0,8)}...</td><td style="padding: 8px; border-bottom: 1px solid var(--border-color);">${l.action}</td></tr>`; }); }
+
+async function renderAuditLogs() { 
+    const tb = document.getElementById('auditLogTableBody'); 
+    tb.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:20px; color:var(--text-secondary);">⏳ 正在拉取云端日志...</td></tr>';
+    try {
+        const res = await fetch(`${API_BASE_URL}/admin/get_logs`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({admin_key: currentUserKey}) });
+        const d = await res.json();
+        tb.innerHTML = '';
+        if(d.success && d.logs.length > 0) {
+            d.logs.forEach(l => { 
+                tb.innerHTML += `<tr style="transition: background 0.2s;" onmouseover="this.style.backgroundColor='var(--bg-hover)'" onmouseout="this.style.backgroundColor='transparent'"><td style="padding: 12px 10px; border-bottom: 1px solid var(--border-color); color: var(--text-secondary); font-size: 0.8rem;">${l.time}</td><td style="padding: 12px 10px; border-bottom: 1px solid var(--border-color);"><span style="background:var(--bg-input); padding:4px 8px; border-radius:6px; border:1px solid var(--border-color); font-family: monospace;">${l.user.substring(0,8)}${l.user.length>8?'...':''}</span></td><td style="padding: 12px 10px; border-bottom: 1px solid var(--border-color); color: var(--text-main); font-weight: 500;">${l.action}</td></tr>`; 
+            });
+        } else {
+            tb.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:30px; color:var(--text-secondary);">☁️ 暂无操作记录</td></tr>';
+        }
+    } catch(e) { tb.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:20px; color:var(--danger-color);">❌ 获取日志失败，请检查网络连接</td></tr>'; }
+}
+
+async function clearAuditLogs() {
+    if(!confirm("🚨 危险操作：确定要永久清空所有成员的操作日志吗？此操作不可恢复！")) return;
+    try {
+        await fetch(`${API_BASE_URL}/admin/clear_logs`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({admin_key: currentUserKey}) });
+        addAuditLog('管理员高危操作：清空了系统审计日志');
+        renderAuditLogs();
+    } catch(e) { alert("清空失败"); }
+}
 
 function renderAssetLibraryTool(mode) {
     currentLibraryMode = mode; const isPersonal = mode === 'personal';

@@ -278,7 +278,27 @@
             </div>
         </div>
 
-        <div id="adminTab-logs" class="admin-tab-content" style="display: none;"><div style="max-height:400px; overflow-y:auto; border:1px solid var(--border-color); border-radius:10px;"><table style="width:100%; border-collapse: collapse; text-align: left; font-size: 0.85rem;"><thead style="background: var(--bg-hover); position: sticky; top: 0;"><tr><th style="padding: 10px; border-bottom: 1px solid var(--border-color); width: 140px;">时间</th><th style="padding: 10px; border-bottom: 1px solid var(--border-color); width: 100px;">操作人</th><th style="padding: 10px; border-bottom: 1px solid var(--border-color);">动作记录</th></tr></thead><tbody id="auditLogTableBody"></tbody></table></div></div>
+        <div id="adminTab-logs" class="admin-tab-content" style="display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <p style="font-size:0.8rem; color:var(--text-secondary); margin: 0;">全站成员操作审计记录（云端永久保存）</p>
+                <div style="display: flex; gap: 10px;">
+                    <button class="nav-btn" onclick="renderAuditLogs()" style="padding: 4px 10px; font-size: 0.8rem;">🔄 刷新数据</button>
+                    <button class="nav-btn" onclick="clearAuditLogs()" style="padding: 4px 10px; font-size: 0.8rem; color: var(--danger-color); border-color: var(--danger-color);">🗑️ 清空日志</button>
+                </div>
+            </div>
+            <div style="max-height:400px; overflow-y:auto; border:1px solid var(--border-color); border-radius:10px; background: var(--bg-container);">
+                <table style="width:100%; border-collapse: collapse; text-align: left; font-size: 0.85rem;">
+                    <thead style="background: var(--bg-hover); position: sticky; top: 0; z-index: 1; backdrop-filter: blur(5px);">
+                        <tr>
+                            <th style="padding: 12px 10px; border-bottom: 1px solid var(--border-color); width: 160px; color: var(--text-secondary);">记录时间</th>
+                            <th style="padding: 12px 10px; border-bottom: 1px solid var(--border-color); width: 120px; color: var(--text-secondary);">操作人</th>
+                            <th style="padding: 12px 10px; border-bottom: 1px solid var(--border-color); color: var(--text-secondary);">高危动作追踪</th>
+                        </tr>
+                    </thead>
+                    <tbody id="auditLogTableBody"></tbody>
+                </table>
+            </div>
+        </div>
         
         <button class="modal-btn cancel-btn" onclick="closeAdminPanel()" style="width:100%; margin-top:15px;">关闭面板</button>
     </div>
