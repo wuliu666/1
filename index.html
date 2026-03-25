@@ -279,18 +279,18 @@
         </div>
 
         <div id="adminTab-logs" class="admin-tab-content" style="display: none;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                <div style="display: flex; align-items: center; gap: 15px;">
-                    <input type="text" id="auditSearchInput" placeholder="🔍 搜索操作人或动作..." style="padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-input); color: var(--text-main); font-size: 0.85rem; width: 180px; outline: none;" onkeyup="filterAuditLogs()">
-                    <div id="auditStats" style="font-size: 0.8rem; color: var(--text-secondary); display: flex; gap: 12px; font-weight: 500;">
-                        </div>
-                </div>
-                <div style="display: flex; gap: 8px;">
-                    <button class="nav-btn" onclick="renderAuditLogs()" style="padding: 4px 10px; font-size: 0.8rem;">🔄 刷新</button>
-                    <button class="nav-btn" onclick="exportAuditLogsCSV()" style="padding: 4px 10px; font-size: 0.8rem; border-color: #34c759; color: #34c759;">📥 导出CSV</button>
-                    <button class="nav-btn" onclick="clearAuditLogs()" style="padding: 4px 10px; font-size: 0.8rem; color: var(--danger-color); border-color: var(--danger-color);">🗑️ 清空</button>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <input type="text" id="auditSearchInput" placeholder="🔍 搜索操作人或动作..." style="padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-input); color: var(--text-main); font-size: 0.9rem; width: 240px; outline: none; transition: border-color 0.2s;" onfocus="this.style.borderColor='var(--highlight-color)'" onblur="this.style.borderColor='var(--border-color)'" onkeyup="filterAuditLogs()">
+                
+                <div style="display: flex; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-container); overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+                    <button onclick="renderAuditLogs()" title="刷新云端数据" style="background: transparent; border: none; padding: 6px 14px; font-size: 1.1rem; cursor: pointer; color: var(--text-secondary); transition: all 0.2s;" onmouseover="this.style.background='var(--bg-hover)'; this.style.color='var(--text-main)'" onmouseout="this.style.background='transparent'; this.style.color='var(--text-secondary)'">🔄</button>
+                    <button onclick="exportAuditLogsCSV()" title="导出 CSV 备份" style="background: transparent; border: none; border-left: 1px solid var(--border-color); border-right: 1px solid var(--border-color); padding: 6px 14px; font-size: 1.1rem; cursor: pointer; color: #34c759; transition: all 0.2s;" onmouseover="this.style.background='var(--bg-hover)'" onmouseout="this.style.background='transparent'">📥</button>
+                    <button onclick="clearAuditLogs()" title="永久清空日志 (高危)" style="background: transparent; border: none; padding: 6px 14px; font-size: 1.1rem; cursor: pointer; color: var(--danger-color); transition: all 0.2s;" onmouseover="this.style.background='var(--bg-hover)'" onmouseout="this.style.background='transparent'">🗑️</button>
                 </div>
             </div>
+
+            <div id="auditStats" style="font-size: 0.8rem; color: var(--text-secondary); display: flex; gap: 18px; font-weight: 500; margin-bottom: 12px; padding-left: 4px; align-items: center;">
+                </div>
             <div style="max-height:400px; overflow-y:auto; border:1px solid var(--border-color); border-radius:10px; background: var(--bg-container);">
                 <table style="width:100%; border-collapse: collapse; text-align: left; font-size: 0.85rem;">
                     <thead style="background: var(--bg-hover); position: sticky; top: 0; z-index: 1; backdrop-filter: blur(5px);">
