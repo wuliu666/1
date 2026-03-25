@@ -49,7 +49,6 @@ function showToast(msg) {
     document.body.appendChild(div); setTimeout(() => { if (div.parentNode) div.remove(); }, 2500);
 }
 
-// 修复：全环境兼容的剪贴板复制函数
 function copyToClipboard(text) {
     if (!text) return;
     if (navigator.clipboard && window.isSecureContext) {
@@ -602,6 +601,7 @@ function renderSidebar() {
     const list = document.getElementById('chatList'); list.innerHTML = '';
     let display = currentTab === 'fav' ? chats.filter(c => c.isFavorite && !c.isStoryboard && !c.isImageGen) : chats.filter(c => !c.isStoryboard && !c.isImageGen); 
     
+    // 【核心识别逻辑】区分闲聊和分镜的侧边栏高亮状态
     document.getElementById('storyboardBtn').classList.toggle('active', currentChatId === HUB_ID || chats.find(c=>c.id===currentChatId)?.isStoryboard);
     document.getElementById('imageGenBtn').classList.toggle('active', currentChatId === IMAGE_GEN_ID);
     document.getElementById('teamAssetBtn').classList.toggle('active', currentChatId === TEAM_ASSET_ID);
@@ -635,12 +635,10 @@ function renderSidebar() {
     });
 }
 
-// ✨ 添加了一个简易版的 Markdown 渲染器，解析类似 Gemini 的代码块加粗效果
 function formatText(text) {
     if(!text) return '';
     let html = text.replace(/</g, "&lt;").replace(/>/g, "&gt;"); 
     
-    // 保护代码块不被格式化破坏
     const codeBlocks = [];
     html = html.replace(/```([\s\S]*?)```/g, function(match, code) {
         codeBlocks.push(code);
@@ -650,7 +648,6 @@ function formatText(text) {
     html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
     html = html.replace(/\n/g, '<br>'); 
     
-    // 还原代码块结构
     html = html.replace(/___CODE_BLOCK_(\d+)___/g, function(match, i) {
         return `<pre><code>${codeBlocks[i]}</code></pre>`;
     });
@@ -695,9 +692,8 @@ function renderMessages() {
 
         const contentDiv = document.createElement('div'); 
         contentDiv.className = 'msg-content'; 
-        contentDiv.id = `msg-content-${index}`; // 赋予唯一 ID，供流式传输精准定位更新
+        contentDiv.id = `msg-content-${index}`; 
 
-        // ✨ 渲染加载中动态图标 or 格式化输出最终内容
         if (m.isThinking) {
             contentDiv.innerHTML = `<div class="typing-indicator"><span></span><span></span><span></span><span class="typing-text">正在深度思考中...</span></div>`;
         } else {
@@ -765,8 +761,10 @@ function exportToPDF() {
     addAuditLog('导出了剧本分镜 PDF 文档'); window.print();
 }
 
+// 【核心隔离逻辑】新建闲聊 isStoryboard 为 false；剧本转分镜为 true
 function createNewChat() { const id = Date.now().toString(); chats.unshift({id, title:"💬 新闲聊", messages:[], isPinned:false, isFavorite:false, isStoryboard:false}); saveChats(); switchChat(id); }
 function createNewStoryboard() { const id = Date.now().toString(); chats.unshift({id, title:"未命名分镜项目", messages:[], isPinned:false, isFavorite:false, isStoryboard:true}); saveChats(); switchChat(id); addAuditLog('新建了分镜项目');}
+
 function saveChats() { if(currentUserKey) { localStorage.setItem('chats_' + currentUserKey, JSON.stringify(chats)); syncChatsToCloud(); } }
 
 function togglePin(id, e) { 
@@ -786,7 +784,6 @@ function closeRenameModal() { document.getElementById('renameModal').classList.r
 function confirmRename() { const v = document.getElementById('renameInput').value.trim(); if(v) { const c = chats.find(x=>x.id===renamingChatId); c.title = v; if(renamingChatId===currentChatId) document.getElementById('headerTitle').innerText=v; saveChats(); if(currentChatId === HUB_ID) document.getElementById('chatBox').innerHTML = renderHubContent(); else renderSidebar(); } closeRenameModal(); }
 function toggleTheme() { document.body.classList.toggle('dark-theme'); }
 
-// 🚀 修复点：接入流式传输 (SSE 解析)，呈现打字机渐显输出效果，并区分 is_storyboard 发给后端
 async function sendMessage() {
     if(!currentUserKey) return;
     const k = currentUserKey;
@@ -803,7 +800,6 @@ async function sendMessage() {
     if(chat.title.includes("新") || chat.title.includes("未命名")) { chat.title = msg.substring(0,12); document.getElementById('headerTitle').innerText = chat.title; }
     input.value = ''; 
     
-    // ✨ 先推入一个带着 isThinking 状态的预备气泡
     const botMsgIndex = chat.messages.length;
     chat.messages.push({ role:'bot', content:'', timestamp: Date.now(), isThinking: true });
     renderMessages();
@@ -814,11 +810,9 @@ async function sendMessage() {
             body:JSON.stringify({ 
                 password: k, 
                 message: msg, 
-                // 只将去除了思考气泡的真实历史发给后端
                 history: chat.messages.slice(0, -2).filter(m => !m.isThinking), 
                 api_source: apiSource, 
                 model_type: modelType,
-                // ✨ 明确告知后端，当前是否处于剧本转分镜模式，以决定是否载入提示词
                 is_storyboard: !!chat.isStoryboard
             }) 
         });
@@ -831,11 +825,57 @@ async function sendMessage() {
             saveChats(); renderMessages(); return;
         }
 
-        // ✨ 循环读取 Stream 流，模拟真正的打字机渲染
         const reader = res.body.getReader();
         const decoder = new TextDecoder('utf-8');
         let done = false;
         let buffer = '';
+
+        // ✨【终极打字机引擎】使用定频定时器，彻底抹平网络与屏幕刷新率的波动
+        let targetContent = "";
+        let displayedContent = "";
+        let isAnimating = false;
+        let typeInterval = null;
+
+        function startSmoothTyping() {
+            if (isAnimating) return;
+            isAnimating = true;
+
+            // 设置固定的打字频率：每 30 毫秒强制执行一次（约一秒钟输出33次）
+            typeInterval = setInterval(() => {
+                let diff = targetContent.length - displayedContent.length;
+
+                if (diff > 0) {
+                    // 动态步长控制：让前端永远变成一个“限流阀”。
+                    // 积压的字少，就绝对匀速 1 个字 1 个字吐；积压的字特别多，才微微提速。
+                    let step = 1;
+                    if (diff > 20) step = 2;
+                    if (diff > 60) step = 3;
+                    if (diff > 120) step = 5;
+
+                    displayedContent += targetContent.substr(displayedContent.length, step);
+                    chat.messages[botMsgIndex].content = displayedContent;
+
+                    if (currentChatId === chat.id) {
+                        const div = document.getElementById(`msg-content-${botMsgIndex}`);
+                        if (div) {
+                            div.innerHTML = formatText(displayedContent) + '<span style="color: var(--text-secondary);"> ▋</span>';
+                            const box = document.getElementById('chatBox');
+                            box.scrollTop = box.scrollHeight;
+                        }
+                    }
+                } else if (done) {
+                    // 网络流收完了，且全部字都平滑打完了，关闭动画
+                    clearInterval(typeInterval);
+                    isAnimating = false;
+                    if (currentChatId === chat.id) {
+                        const div = document.getElementById(`msg-content-${botMsgIndex}`);
+                        if (div) div.innerHTML = formatText(targetContent); // 移除光标
+                    }
+                    saveChats();
+                    renderSidebar();
+                }
+            }, 30); // 👈 强制锁死 30 毫秒的定频，让视觉极度平滑
+        }
 
         while (!done) {
             const { value, done: readerDone } = await reader.read();
@@ -843,26 +883,18 @@ async function sendMessage() {
             if (value) {
                 buffer += decoder.decode(value, { stream: true });
                 let lines = buffer.split('\n');
-                buffer = lines.pop(); // 保留不完整的碎片
+                buffer = lines.pop(); 
                 
                 for (let line of lines) {
                     if (line.trim()) {
                         try {
                             const parsed = JSON.parse(line);
                             if (parsed.reply) {
-                                chat.messages[botMsgIndex].content += parsed.reply;
-                                // 通过 ID 精准覆盖 DOM 防止重绘闪烁
-                                if (currentChatId === chat.id) {
-                                    const div = document.getElementById(`msg-content-${botMsgIndex}`);
-                                    if (div) {
-                                        div.innerHTML = formatText(chat.messages[botMsgIndex].content);
-                                        const box = document.getElementById('chatBox');
-                                        box.scrollTop = box.scrollHeight;
-                                    }
-                                }
+                                targetContent += parsed.reply;
+                                startSmoothTyping(); // 唤醒定频打字机
                             } else if (parsed.error) {
-                                chat.messages[botMsgIndex].content += "\n[报错]: " + parsed.error;
-                                renderMessages();
+                                targetContent += "\n[报错]: " + parsed.error;
+                                startSmoothTyping();
                             }
                         } catch (e) {}
                     }
@@ -870,9 +902,17 @@ async function sendMessage() {
             }
         }
         
-        saveChats(); 
-        renderMessages(); 
-        renderSidebar();
+        // 兜底保护，防极端网络环境
+        if (!isAnimating && done) {
+            chat.messages[botMsgIndex].content = targetContent;
+            if (currentChatId === chat.id) {
+                const div = document.getElementById(`msg-content-${botMsgIndex}`);
+                if (div) div.innerHTML = formatText(chat.messages[botMsgIndex].content);
+            }
+            saveChats(); 
+            renderSidebar();
+        }
+
     } catch(e) { 
         chat.messages[botMsgIndex].isThinking = false;
         chat.messages[botMsgIndex].content = "网络连接失败，请重试~";

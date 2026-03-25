@@ -48,7 +48,6 @@
         </div>
         <div id="headerActions" style="display: none; gap: 8px; align-items: center;">
             <button class="nav-btn" id="changeKeyBtn" onclick="openChangeKeyModal()" title="修改您的登录访问密钥 (原数据会自动迁移)">🔑 修改密钥</button>
-            <button class="nav-btn" id="apiBtn" onclick="openApiModal()" style="display:none; color: #0a84ff;" title="设置全站底层 AI 模型的 API 通道与通道密钥">⚙️ API 配置</button>
             <button class="nav-btn" id="adminBtn" onclick="openAdminPanel()" style="display:none; color: var(--highlight-color);" title="打开管理员仪表盘：管理团队密钥、用量限制与模型列表">后台面板</button>
             <button class="nav-btn" onclick="logout()" title="安全注销并退出当前账号">退出</button>
             <button class="action-btn" onclick="toggleTheme()" title="一键切换界面的 深色/浅色 护眼模式" style="font-size: 1.2rem; padding: 4px;">🌓</button>
@@ -161,20 +160,6 @@
 <div class="modal-overlay" id="editAssetModal" style="display: none;"><div class="modal-box" style="max-width: 500px;"><h3 style="margin-top: 0;">编辑素材属性</h3><div class="setting-row"><label>素材名称</label><input type="text" id="editAssetTitle" placeholder="例如：男主张三默认脸型"></div><div class="setting-row"><label>素材类型</label><select id="editAssetType"><option value="character">👤 角色设定 (脸型/三视图)</option><option value="scene">🏞️ 场景概念</option></select></div><div class="setting-row"><label>提示词/Prompt (建议附带 Seed)</label><textarea id="editAssetPrompt" style="width: 100%; height: 80px; padding: 10px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-input); color: var(--text-main); font-family: monospace; box-sizing: border-box;" placeholder="请输入提示词..."></textarea></div><div style="display:flex; gap:10px; margin-top:20px;"><button class="modal-btn btn-confirm" style="flex:1" onclick="saveAssetEdit()">保存更改</button><button class="modal-btn cancel-btn" style="flex:1;" onclick="closeEditAssetModal()">取消</button></div></div></div>
 <div class="modal-overlay" id="bulkCategoryModal" style="display: none;"><div class="modal-box" style="max-width: 400px;"><h3 style="margin-top: 0;">批量修改分类</h3><div class="setting-row"><label>选择新的分类</label><select id="bulkCategorySelect"><option value="character">👤 角色设定 (脸型/三视图)</option><option value="scene">🏞️ 场景概念</option></select></div><div style="display:flex; gap:10px; margin-top:20px;"><button class="modal-btn btn-confirm" style="flex:1" onclick="confirmBulkCategory()">确认修改</button><button class="modal-btn cancel-btn" style="flex:1;" onclick="closeBulkCategoryModal()">取消</button></div></div></div>
 
-<div class="modal-overlay" id="apiModal" style="display: none;">
-    <div class="modal-box">
-        <h3 style="margin-top: 0;">🌐 配置系统通道密钥矩阵</h3>
-        <p style="font-size:0.8rem; color:var(--text-secondary); margin-bottom: 15px;">配置各通道的密钥后，成员即可在前端自由切换通道与模型。</p>
-        <div class="setting-row"><label>🔑 Google 官方直连 API Key</label><input type="password" id="geminiKey" placeholder="AIzaSy..."></div>
-        <div class="setting-row"><label>🔑 GeekNow 中转 API Key</label><input type="password" id="geeknowKey" placeholder="sk-..."></div>
-        <div class="setting-row"><label>🔑 GRSAI 中转 API Key</label><input type="password" id="grsaiKey" placeholder="sk-..."></div>
-        <div style="display:flex; gap:10px; margin-top:20px;">
-            <button class="modal-btn btn-confirm" style="flex:1" onclick="saveApiSettings()">永久保存</button>
-            <button class="modal-btn cancel-btn" style="flex:1" onclick="closeApiModal()">取消</button>
-        </div>
-    </div>
-</div>
-
 <div class="modal-overlay" id="renameModal" style="display: none;"><div class="modal-box" style="max-width:320px; text-align: center;"><h3 style="margin-top: 0;">修改标题</h3><input type="text" id="renameInput" placeholder="请输入新标题" style="width:100%; padding:12px; border-radius:10px; border:1px solid var(--border-color); box-sizing:border-box; margin-bottom:20px;"><div style="display:flex; gap:10px;"><button class="modal-btn cancel-btn" style="flex:1" onclick="closeRenameModal()">取消</button><button class="modal-btn btn-confirm" style="flex:1" onclick="confirmRename()">保存</button></div></div></div>
 <div class="modal-overlay" id="confirmModal" style="display: none;"><div class="modal-box" style="max-width:320px; text-align: center;"><h3 style="margin-top: 0;">操作确认</h3><p style="color: var(--text-secondary); margin-bottom: 24px;">您确定要执行此操作吗？</p><div style="display:flex; gap:10px;"><button class="modal-btn cancel-btn" style="flex:1" onclick="closeConfirmModal()">取消</button><button class="modal-btn btn-confirm" style="flex:1; background: var(--danger-color);" onclick="executeConfirm()">确认</button></div></div></div>
 
@@ -183,6 +168,7 @@
         <div class="admin-tabs">
             <button class="admin-tab-btn active" id="tabBtn-keys" onclick="switchAdminTab('keys')">🔑 密钥与用量</button>
             <button class="admin-tab-btn" id="tabBtn-models" onclick="switchAdminTab('models')">⚙️ 动态模型</button>
+            <button class="admin-tab-btn" id="tabBtn-api" onclick="switchAdminTab('api')">🌐 API 通道</button>
             <button class="admin-tab-btn" id="tabBtn-logs" onclick="switchAdminTab('logs')">📝 操作日志</button>
         </div>
         
@@ -219,7 +205,19 @@
             <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 12px;">提示：前端用户切换 API 通道时，下拉框会精确呈现该通道下配置的模型列表。</p>
         </div>
 
+        <div id="adminTab-api" class="admin-tab-content" style="display: none;">
+            <div style="border: 1px solid var(--border-color); border-radius: 10px; padding: 15px;">
+                <h4 style="margin: 0 0 10px 0;">🌐 配置系统通道密钥矩阵</h4>
+                <p style="font-size:0.8rem; color:var(--text-secondary); margin-bottom: 15px;">配置各通道的底层鉴权密钥。全站所有成员的请求都将通过这些密钥发起。</p>
+                <div class="setting-row"><label>🔑 Google 官方直连 API Key</label><input type="password" id="geminiKey" placeholder="AIzaSy..."></div>
+                <div class="setting-row"><label>🔑 GeekNow 中转 API Key</label><input type="password" id="geeknowKey" placeholder="sk-..."></div>
+                <div class="setting-row"><label>🔑 GRSAI 中转 API Key</label><input type="password" id="grsaiKey" placeholder="sk-..."></div>
+                <button class="modal-btn btn-confirm" style="width: 100%; margin-top: 10px;" onclick="saveApiSettings()">永久保存 API 配置</button>
+            </div>
+        </div>
+
         <div id="adminTab-logs" class="admin-tab-content" style="display: none;"><div style="max-height:400px; overflow-y:auto; border:1px solid var(--border-color); border-radius:10px;"><table style="width:100%; border-collapse: collapse; text-align: left; font-size: 0.85rem;"><thead style="background: var(--bg-hover); position: sticky; top: 0;"><tr><th style="padding: 10px; border-bottom: 1px solid var(--border-color); width: 140px;">时间</th><th style="padding: 10px; border-bottom: 1px solid var(--border-color); width: 100px;">操作人</th><th style="padding: 10px; border-bottom: 1px solid var(--border-color);">动作记录</th></tr></thead><tbody id="auditLogTableBody"></tbody></table></div></div>
+        
         <button class="modal-btn cancel-btn" onclick="closeAdminPanel()" style="width:100%; margin-top:15px;">关闭面板</button>
     </div>
 </div>

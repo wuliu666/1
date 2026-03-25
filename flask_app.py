@@ -319,7 +319,6 @@ def verify():
         return jsonify({"status": "success", "is_admin": (pwd == MASTER_KEY), "note": keys[pwd].get("note", "Creator")})
     return jsonify({"error": "请输入你的内容"}), 403
 
-# 🚀 【新增】用户自行修改密钥，并自动转移所有云端数据！
 @app.route('/api/change_key', methods=['POST'])
 def change_key():
     data = request.json
@@ -485,7 +484,7 @@ def save_config():
     save_keys(keys)
     return jsonify({"success": True})
 
-# 🚀 修复点：添加对 is_storyboard 的判断，隔离系统提示词，并引入全流式SSE生成
+# 核心路由：精准隔离“普通闲聊”与“分镜剧本”的提示词环境
 @app.route('/chat', methods=['POST'])
 def chat():
     data = request.json
@@ -495,7 +494,7 @@ def chat():
     source = data.get('api_source', 'gemini') 
     actual_model_name = data.get('model_type', 'gemini-3-pro-preview' if source == 'geeknow' else 'gemini-3.1-pro') 
     
-    # 获取前端传入的标识，判断当前聊天是否属于“剧本转分镜”
+    # 【核心隔离逻辑】获取前端传入的标识，判断当前聊天是否属于“剧本转分镜”
     is_storyboard = data.get('is_storyboard', False)
 
     keys = load_keys()
@@ -511,10 +510,11 @@ def chat():
         try:
             if source == "gemini":
                 genai.configure(api_key=dynamic_key)
-                # ✨ 如果是分镜，才加上团队设定的系统指令
+                # ✅ 仅在剧本转分镜 (is_storyboard) 模式下，才加载团队设定的 AGENT_SOUL 系统指令
                 if is_storyboard:
                     model = genai.GenerativeModel(model_name=actual_model_name, system_instruction=AGENT_SOUL)
                 else:
+                    # ✅ 闲聊模式，环境完全干净，无系统预设
                     model = genai.GenerativeModel(model_name=actual_model_name)
                     
                 formatted = [{"role": "user" if m["role"]=="user" else "model", "parts": [m["content"]]} for m in hist]
@@ -527,7 +527,7 @@ def chat():
                         yield json.dumps({"reply": chunk.text}) + "\n"
             else:
                 messages = []
-                # ✨ 如果是分镜，才往头部插入系统消息
+                # ✅ 仅在剧本转分镜模式下，往头部插入包含 AGENT_SOUL 的系统消息
                 if is_storyboard:
                     messages.append({"role": "system", "content": AGENT_SOUL})
                     
