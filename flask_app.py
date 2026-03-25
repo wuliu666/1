@@ -39,7 +39,6 @@ def dict_factory(cursor, row):
     for idx, col in enumerate(cursor.description): d[col[0]] = row[idx]
     return d
 
-# 👇 九雨团队专属系统提示词 👇
 AGENT_SOUL = """
 ### 初始化指令
 欢迎使用九雨团队剧本转分镜功能
@@ -269,7 +268,6 @@ def save_keys(data):
     with open(KEYS_FILE, 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
 
-# ================= 🛡️ 智能设备漫游与同步 API =================
 @app.route('/api/heartbeat', methods=['POST'])
 def heartbeat():
     data = request.json
@@ -370,7 +368,6 @@ def save_chats():
     conn.close()
     return jsonify({"success": True})
 
-# ================= 真实文件系统 API =================
 @app.route('/api/upload_asset', methods=['POST'])
 def upload_asset():
     if 'file' not in request.files: return jsonify({"error": "No file"}), 400
@@ -468,7 +465,6 @@ def bulk_update_category():
     conn.close()
     return jsonify({"success": True})
 
-# ================= 全局 API 与 聊天路由 =================
 @app.route('/admin/get_config', methods=['POST'])
 def get_config():
     if request.json.get('admin_key') != MASTER_KEY: return jsonify({"error": "无权"}), 403
@@ -516,7 +512,6 @@ def test_api():
         return jsonify({"success": False, "msg": str(e)[:80]})
     return jsonify({"success": False, "msg": "未知错误"})
 
-# 核心路由：精准隔离“普通闲聊”与“分镜剧本”的提示词环境
 @app.route('/chat', methods=['POST'])
 def chat():
     data = request.json
@@ -526,7 +521,6 @@ def chat():
     source = data.get('api_source', 'gemini') 
     actual_model_name = data.get('model_type', 'gemini-3-pro-preview' if source == 'geeknow' else 'gemini-3.1-pro') 
     
-    # 【核心隔离逻辑】获取前端传入的标识，判断当前聊天是否属于“剧本转分镜”
     is_storyboard = data.get('is_storyboard', False)
 
     keys = load_keys()
@@ -542,24 +536,20 @@ def chat():
         try:
             if source == "gemini":
                 genai.configure(api_key=dynamic_key)
-                # ✅ 仅在剧本转分镜 (is_storyboard) 模式下，才加载团队设定的 AGENT_SOUL 系统指令
                 if is_storyboard:
                     model = genai.GenerativeModel(model_name=actual_model_name, system_instruction=AGENT_SOUL)
                 else:
-                    # ✅ 闲聊模式，环境完全干净，无系统预设
                     model = genai.GenerativeModel(model_name=actual_model_name)
                     
                 formatted = [{"role": "user" if m["role"]=="user" else "model", "parts": [m["content"]]} for m in hist]
                 chat_session = model.start_chat(history=formatted)
                 
-                # 开启流式响应
                 response = chat_session.send_message(msg, stream=True)
                 for chunk in response:
                     if chunk.text:
                         yield json.dumps({"reply": chunk.text}) + "\n"
             else:
                 messages = []
-                # ✅ 仅在剧本转分镜模式下，往头部插入包含 AGENT_SOUL 的系统消息
                 if is_storyboard:
                     messages.append({"role": "system", "content": AGENT_SOUL})
                     
@@ -568,7 +558,6 @@ def chat():
                 messages.append({"role": "user", "content": msg})
                 
                 headers = {"Authorization": f"Bearer {dynamic_key}", "Content-Type": "application/json"}
-                # 开启 stream=True
                 payload = {"model": actual_model_name, "messages": messages, "temperature": 0.7, "stream": True}
                 
                 if source == "geeknow":
@@ -582,7 +571,6 @@ def chat():
                     yield json.dumps({"error": f"中转API报错: {resp.text}"}) + "\n"
                     return
                 
-                # 解析 SSE 流式返回
                 for line in resp.iter_lines():
                     if line:
                         line_str = line.decode('utf-8')
@@ -600,10 +588,8 @@ def chat():
         except Exception as e:
             yield json.dumps({"error": f"API 调用失败: {str(e)}"}) + "\n"
 
-    # 以流的格式向前端响应
     return app.response_class(generate(), mimetype='application/x-ndjson')
 
-# ================= 后台密钥管理 =================
 @app.route('/admin/list', methods=['POST'])
 def list_keys():
     if request.json.get('admin_key') != MASTER_KEY: return jsonify({"error": "无权"}), 403

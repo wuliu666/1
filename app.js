@@ -78,7 +78,6 @@ function fallbackCopy(text) {
     document.body.removeChild(textArea);
 }
 
-// ================= 云端同步机制 =================
 async function fetchTeamAssets() { try { const res = await fetch(`${API_BASE_URL}/api/get_assets`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({library_mode: 'team'}) }); teamAssets = res.ok ? await res.json() : []; } catch(e) { teamAssets = []; } }
 async function fetchPersonalAssets() { try { const res = await fetch(`${API_BASE_URL}/api/get_assets`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({library_mode: 'personal', user_key: currentUserKey}) }); personalAssets = res.ok ? await res.json() : []; } catch(e) { personalAssets = []; } }
 
@@ -100,7 +99,6 @@ async function syncChatsToCloud() {
     try { await fetch(`${API_BASE_URL}/api/save_chats`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({user_key: currentUserKey, chats: chats}) }); } catch(e) {}
 }
 
-// ================= 全局状态管理 =================
 let isSidebarCollapsed = window.innerWidth <= 768; 
 window.addEventListener('DOMContentLoaded', () => { if(isSidebarCollapsed) document.getElementById('appSidebar')?.classList.add('collapsed'); });
 
@@ -197,7 +195,7 @@ async function verifyKey() {
             if (savedModel && dynamicModels[savedSource].find(m => m.id === savedModel)) { document.getElementById('modelSelect').value = savedModel; }
             
             document.getElementById('keySection').style.display = 'none'; document.getElementById('headerActions').style.display = 'flex';
-           document.getElementById('adminBtn').style.display = isAdmin ? 'inline-block' : 'none';
+            document.getElementById('adminBtn').style.display = isAdmin ? 'inline-block' : 'none';
             addAuditLog('登录系统'); switchChat(HUB_ID);
         } else { showToast("请联系管理员！"); }
     } catch(e) { showToast("网络连接失败，请确保服务器正常运行！"); } finally { btn.innerText = originalText; btn.disabled = false; }
@@ -330,6 +328,7 @@ function switchAdminTab(tabName) {
     if(tabName === 'logs') renderAuditLogs(); 
     if(tabName === 'api') loadApiSettings(); 
 }
+
 async function openAdminPanel() { document.getElementById('adminModal').classList.add('show'); switchAdminTab('keys'); }
 function closeAdminPanel() { document.getElementById('adminModal').classList.remove('show'); }
 
@@ -830,7 +829,6 @@ function exportToPDF() {
     addAuditLog('导出了剧本分镜 PDF 文档'); window.print();
 }
 
-// 【核心隔离逻辑】新建闲聊 isStoryboard 为 false；剧本转分镜为 true
 function createNewChat() { const id = Date.now().toString(); chats.unshift({id, title:"💬 新闲聊", messages:[], isPinned:false, isFavorite:false, isStoryboard:false}); saveChats(); switchChat(id); }
 function createNewStoryboard() { const id = Date.now().toString(); chats.unshift({id, title:"未命名分镜项目", messages:[], isPinned:false, isFavorite:false, isStoryboard:true}); saveChats(); switchChat(id); addAuditLog('新建了分镜项目');}
 
@@ -899,7 +897,6 @@ async function sendMessage() {
         let done = false;
         let buffer = '';
 
-        // ✨【终极打字机引擎】使用定频定时器，彻底抹平网络与屏幕刷新率的波动
         let targetContent = "";
         let displayedContent = "";
         let isAnimating = false;
@@ -909,13 +906,10 @@ async function sendMessage() {
             if (isAnimating) return;
             isAnimating = true;
 
-            // 设置固定的打字频率：每 30 毫秒强制执行一次（约一秒钟输出33次）
             typeInterval = setInterval(() => {
                 let diff = targetContent.length - displayedContent.length;
 
                 if (diff > 0) {
-                    // 动态步长控制：让前端永远变成一个“限流阀”。
-                    // 积压的字少，就绝对匀速 1 个字 1 个字吐；积压的字特别多，才微微提速。
                     let step = 1;
                     if (diff > 20) step = 2;
                     if (diff > 60) step = 3;
@@ -933,17 +927,16 @@ async function sendMessage() {
                         }
                     }
                 } else if (done) {
-                    // 网络流收完了，且全部字都平滑打完了，关闭动画
                     clearInterval(typeInterval);
                     isAnimating = false;
                     if (currentChatId === chat.id) {
                         const div = document.getElementById(`msg-content-${botMsgIndex}`);
-                        if (div) div.innerHTML = formatText(targetContent); // 移除光标
+                        if (div) div.innerHTML = formatText(targetContent); 
                     }
                     saveChats();
                     renderSidebar();
                 }
-            }, 30); // 👈 强制锁死 30 毫秒的定频，让视觉极度平滑
+            }, 30); 
         }
 
         while (!done) {
@@ -960,7 +953,7 @@ async function sendMessage() {
                             const parsed = JSON.parse(line);
                             if (parsed.reply) {
                                 targetContent += parsed.reply;
-                                startSmoothTyping(); // 唤醒定频打字机
+                                startSmoothTyping(); 
                             } else if (parsed.error) {
                                 targetContent += "\n[报错]: " + parsed.error;
                                 startSmoothTyping();
@@ -971,7 +964,6 @@ async function sendMessage() {
             }
         }
         
-        // 兜底保护，防极端网络环境
         if (!isAnimating && done) {
             chat.messages[botMsgIndex].content = targetContent;
             if (currentChatId === chat.id) {
