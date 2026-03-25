@@ -280,9 +280,10 @@
 
         <div id="adminTab-logs" class="admin-tab-content" style="display: none;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                <div style="display: flex; align-items: center; gap: 10px;">
-                    <p style="font-size:0.8rem; color:var(--text-secondary); margin: 0; display: none; @media(min-width: 600px){display: block;}">审计记录</p>
+                <div style="display: flex; align-items: center; gap: 15px;">
                     <input type="text" id="auditSearchInput" placeholder="🔍 搜索操作人或动作..." style="padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-input); color: var(--text-main); font-size: 0.85rem; width: 180px; outline: none;" onkeyup="filterAuditLogs()">
+                    <div id="auditStats" style="font-size: 0.8rem; color: var(--text-secondary); display: flex; gap: 12px; font-weight: 500;">
+                        </div>
                 </div>
                 <div style="display: flex; gap: 8px;">
                     <button class="nav-btn" onclick="renderAuditLogs()" style="padding: 4px 10px; font-size: 0.8rem;">🔄 刷新</button>

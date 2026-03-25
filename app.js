@@ -419,18 +419,36 @@ function removeModel(type, id) { const source = type === 'image' ? 'image' : doc
 
 let currentAuditLogsData = [];
 
+function getActionBadge(action) {
+    if (action.includes('删除') || action.includes('清空') || action.includes('高危')) return `<span style="color: #ff3b30; font-weight: bold;">🔴 ${action}</span>`;
+    if (action.includes('登录') || action.includes('恢复') || action.includes('新增')) return `<span style="color: #34c759;">🟢 ${action}</span>`;
+    if (action.includes('修改') || action.includes('更新') || action.includes('设置') || action.includes('配置')) return `<span style="color: #ff9500;">🟠 ${action}</span>`;
+    if (action.includes('生成') || action.includes('生图') || action.includes('提取') || action.includes('拆分') || action.includes('下载') || action.includes('导出')) return `<span style="color: #af52de;">🟣 ${action}</span>`;
+    return `<span>${action}</span>`;
+}
+
 function drawAuditLogTable(logs) {
     const tb = document.getElementById('auditLogTableBody'); 
     tb.innerHTML = '';
+    
+    // 动态渲染顶部统计大盘
+    const stats = document.getElementById('auditStats');
+    if (stats) {
+        const todayStr = new Date().toISOString().split('T')[0]; // 获取 YYYY-MM-DD
+        const todayCount = logs.filter(l => l.time.startsWith(todayStr)).length;
+        const dangerCount = logs.filter(l => l.action.includes('删除') || l.action.includes('清空')).length;
+        stats.innerHTML = `<span>📑 总记录数: ${logs.length}</span> <span style="color: #34c759;">📅 今日新增: ${todayCount}</span> <span style="color: #ff3b30;">🚨 风险操作: ${dangerCount}</span>`;
+    }
+
     if(logs.length > 0) {
         logs.forEach(l => { 
-            tb.innerHTML += `<tr style="transition: background 0.2s;" onmouseover="this.style.backgroundColor='var(--bg-hover)'" onmouseout="this.style.backgroundColor='transparent'"><td style="padding: 12px 10px; border-bottom: 1px solid var(--border-color); color: var(--text-secondary); font-size: 0.8rem;">${l.time}</td><td style="padding: 12px 10px; border-bottom: 1px solid var(--border-color);"><span style="background:var(--bg-input); padding:4px 8px; border-radius:6px; border:1px solid var(--border-color); font-family: monospace;">${l.user.substring(0,8)}${l.user.length>8?'...':''}</span></td><td style="padding: 12px 10px; border-bottom: 1px solid var(--border-color); color: var(--text-main); font-weight: 500;">${l.action}</td></tr>`; 
+            const badgeAction = getActionBadge(l.action);
+            tb.innerHTML += `<tr style="transition: background 0.2s;" onmouseover="this.style.backgroundColor='var(--bg-hover)'" onmouseout="this.style.backgroundColor='transparent'"><td style="padding: 12px 10px; border-bottom: 1px solid var(--border-color); color: var(--text-secondary); font-size: 0.8rem;">${l.time}</td><td style="padding: 12px 10px; border-bottom: 1px solid var(--border-color);"><span style="background:var(--bg-input); padding:4px 8px; border-radius:6px; border:1px solid var(--border-color); font-family: monospace;">${l.user.substring(0,8)}${l.user.length>8?'...':''}</span></td><td style="padding: 12px 10px; border-bottom: 1px solid var(--border-color); color: var(--text-main); font-weight: 500;">${badgeAction}</td></tr>`; 
         });
     } else {
         tb.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:30px; color:var(--text-secondary);">☁️ 暂无相关记录</td></tr>';
     }
 }
-
 async function renderAuditLogs() { 
     const tb = document.getElementById('auditLogTableBody'); 
     tb.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:20px; color:var(--text-secondary);">⏳ 正在拉取云端日志...</td></tr>';
