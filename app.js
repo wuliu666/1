@@ -189,10 +189,24 @@ async function verifyKey() {
             if (!chats.find(c => c.id === IMAGE_GEN_ID)) { chats.push({id: IMAGE_GEN_ID, title: "AI生图记录", messages: [], isImageGen: true}); saveChats(); }
             getUserUsage(p); localStorage.setItem('sys_user_usages', JSON.stringify(userUsages));
             
-            const savedSource = localStorage.getItem('api_source_' + currentUserKey) || 'gemini';
-            document.getElementById('apiSourceSelect').value = savedSource; onApiSourceChange(); 
+            const sourceSelect = document.getElementById('apiSourceSelect');
+            sourceSelect.innerHTML = '';
+            if (d.active_channels) {
+                if (d.active_channels.gemini) sourceSelect.innerHTML += '<option value="gemini">🌐 Gemini</option>';
+                if (d.active_channels.geeknow) sourceSelect.innerHTML += '<option value="geeknow">🚀 GeekNow</option>';
+                if (d.active_channels.grsai) sourceSelect.innerHTML += '<option value="grsai">⚡ GRSAI</option>';
+            } else {
+                sourceSelect.innerHTML = '<option value="gemini">🌐 Gemini</option><option value="geeknow">🚀 GeekNow</option><option value="grsai">⚡ GRSAI</option>';
+            }
+
+            let savedSource = localStorage.getItem('api_source_' + currentUserKey);
+            if (!savedSource || !sourceSelect.querySelector(`option[value="${savedSource}"]`)) {
+                savedSource = sourceSelect.options.length > 0 ? sourceSelect.options[0].value : 'gemini';
+            }
+            sourceSelect.value = savedSource; onApiSourceChange(); 
+            
             const savedModel = localStorage.getItem('model_type_' + currentUserKey);
-            if (savedModel && dynamicModels[savedSource].find(m => m.id === savedModel)) { document.getElementById('modelSelect').value = savedModel; }
+            if (savedModel && dynamicModels[savedSource] && dynamicModels[savedSource].find(m => m.id === savedModel)) { document.getElementById('modelSelect').value = savedModel; }
             
             document.getElementById('keySection').style.display = 'none'; document.getElementById('headerActions').style.display = 'flex';
             document.getElementById('adminBtn').style.display = isAdmin ? 'inline-block' : 'none';
@@ -259,9 +273,12 @@ async function loadApiSettings() {
         const res = await fetch(`${API_BASE_URL}/admin/get_config`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({admin_key: currentUserKey}) }); 
         if(res.ok) { 
             const d = await res.json(); 
+            document.getElementById('geminiEnable').checked = d.gemini_enabled !== false;
             document.getElementById('geminiKey').value = d.gemini_key || ''; 
+            document.getElementById('geeknowEnable').checked = d.geeknow_enabled !== false;
             document.getElementById('geeknowKey').value = d.geeknow_key || ''; 
             document.getElementById('geeknowUrl').value = d.geeknow_url || 'https://www.geeknow.top/v1'; 
+            document.getElementById('grsaiEnable').checked = d.grsai_enabled !== false;
             document.getElementById('grsaiKey').value = d.grsai_key || ''; 
             document.getElementById('grsaiUrl').value = d.grsai_url || 'https://api.grsai.com/v1'; 
         } 
@@ -271,17 +288,52 @@ async function loadApiSettings() {
 async function saveApiSettings() { 
     const payload = { 
         admin_key: currentUserKey, 
+        gemini_enabled: document.getElementById('geminiEnable').checked,
         gemini_key: document.getElementById('geminiKey').value.trim(), 
+        geeknow_enabled: document.getElementById('geeknowEnable').checked,
         geeknow_url: document.getElementById('geeknowUrl').value.trim() || 'https://www.geeknow.top/v1',
         geeknow_key: document.getElementById('geeknowKey').value.trim(), 
+        grsai_enabled: document.getElementById('grsaiEnable').checked,
         grsai_url: document.getElementById('grsaiUrl').value.trim() || 'https://api.grsai.com/v1',
         grsai_key: document.getElementById('grsaiKey').value.trim() 
     }; 
     try { 
         await fetch(`${API_BASE_URL}/admin/save_config`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) }); 
-        showToast("✅ 通道与地址配置已永久保存！"); 
-        addAuditLog('更新了通道的基础接口配置与密钥矩阵'); 
+        showToast("✅ 通道地址与开关状态已永久保存！刷新生效"); 
+        addAuditLog('更新了通道的基础配置、开关状态与密钥'); 
     } catch(e) { alert("保存失败"); } 
+}
+
+async function checkBalance(channel) {
+    const btn = document.getElementById(`btnBal-${channel}`);
+    const originalText = btn.innerHTML;
+    btn.innerHTML = "⏳ 查询中...";
+    btn.disabled = true;
+
+    let key = document.getElementById(`${channel}Key`).value.trim();
+    let url = document.getElementById(`${channel}Url`).value.trim();
+
+    if (!key) { alert("⚠️ 请先在上方填写该通道的 API Key！"); btn.innerHTML = originalText; btn.disabled = false; return; }
+
+    try {
+        const res = await fetch(`${API_BASE_URL}/admin/check_balance`, {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ admin_key: currentUserKey, api_key: key, base_url: url })
+        });
+        const d = await res.json();
+        if (d.success) {
+            btn.innerHTML = typeof d.balance === 'number' ? `💲 余额: $${d.balance.toFixed(4)}` : `✅ ${d.balance}`;
+            btn.style.backgroundColor = "var(--bg-hover)";
+            btn.style.borderColor = "var(--border-color)";
+            btn.style.color = "var(--text-main)";
+        } else {
+            btn.innerHTML = "❌ 查询失败";
+            alert("余额查询失败：\n" + (d.msg || "未知错误"));
+        }
+    } catch (e) {
+        btn.innerHTML = "❌ 网络超时";
+    }
+    setTimeout(() => { btn.innerHTML = originalText; btn.style.backgroundColor = ""; btn.style.borderColor = "#ff9500"; btn.style.color = "#ff9500"; btn.disabled = false; }, 4000);
 }
 
 async function testApiConnection(channel) {

@@ -314,7 +314,13 @@ def verify():
         conn.commit()
         conn.close()
         
-        return jsonify({"status": "success", "is_admin": (pwd == MASTER_KEY), "note": keys[pwd].get("note", "Creator")})
+        global_conf = keys.get('__GLOBAL_CONFIG__', {})
+        active_channels = {
+            "gemini": global_conf.get("gemini_enabled", True),
+            "geeknow": global_conf.get("geeknow_enabled", True),
+            "grsai": global_conf.get("grsai_enabled", True)
+        }
+        return jsonify({"status": "success", "is_admin": (pwd == MASTER_KEY), "note": keys[pwd].get("note", "Creator"), "active_channels": active_channels})
     return jsonify({"error": "请输入你的内容"}), 403
 
 @app.route('/api/change_key', methods=['POST'])
@@ -469,7 +475,11 @@ def bulk_update_category():
 def get_config():
     if request.json.get('admin_key') != MASTER_KEY: return jsonify({"error": "无权"}), 403
     keys = load_keys()
-    default_conf = {"gemini_key": "", "geeknow_url": "https://www.geeknow.top/v1", "geeknow_key": "", "grsai_url": "https://api.grsai.com/v1", "grsai_key": ""}
+    default_conf = {
+        "gemini_enabled": True, "gemini_key": "", 
+        "geeknow_enabled": True, "geeknow_url": "https://www.geeknow.top/v1", "geeknow_key": "", 
+        "grsai_enabled": True, "grsai_url": "https://api.grsai.com/v1", "grsai_key": ""
+    }
     return jsonify(keys.get('__GLOBAL_CONFIG__', default_conf))
 
 @app.route('/admin/save_config', methods=['POST'])
@@ -478,9 +488,12 @@ def save_config():
     if data.get('admin_key') != MASTER_KEY: return jsonify({"error": "无权"}), 403
     keys = load_keys()
     keys['__GLOBAL_CONFIG__'] = {
+        "gemini_enabled": data.get('gemini_enabled', True),
         "gemini_key": data.get('gemini_key', ''),
+        "geeknow_enabled": data.get('geeknow_enabled', True),
         "geeknow_url": data.get('geeknow_url', 'https://www.geeknow.top/v1'),
         "geeknow_key": data.get('geeknow_key', ''),
+        "grsai_enabled": data.get('grsai_enabled', True),
         "grsai_url": data.get('grsai_url', 'https://api.grsai.com/v1'),
         "grsai_key": data.get('grsai_key', '')
     }
@@ -511,6 +524,28 @@ def test_api():
     except Exception as e:
         return jsonify({"success": False, "msg": str(e)[:80]})
     return jsonify({"success": False, "msg": "未知错误"})
+
+@app.route('/admin/check_balance', methods=['POST'])
+def check_balance():
+    data = request.json
+    if data.get('admin_key') != MASTER_KEY: return jsonify({"error": "无权"}), 403
+    api_key = data.get('api_key')
+    base_url = data.get('base_url', '').rstrip('/')
+    
+    try:
+        headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+        r = requests.get(f"{base_url}/dashboard/billing/subscription", headers=headers, timeout=10)
+        if r.ok:
+            info = r.json()
+            balance = info.get('hard_limit_usd', 0)
+            return jsonify({"success": True, "balance": balance})
+        else:
+            r2 = requests.get(f"{base_url}/dashboard/billing/usage", headers=headers, timeout=10)
+            if r2.ok:
+                return jsonify({"success": True, "balance": "无法获取精确数值，但计费接口连通正常"})
+            return jsonify({"success": False, "msg": f"接口报错 {r.status_code}: {r.text[:80]}"})
+    except Exception as e:
+        return jsonify({"success": False, "msg": str(e)[:80]})
 
 @app.route('/chat', methods=['POST'])
 def chat():
