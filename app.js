@@ -336,6 +336,38 @@ async function checkBalance(channel) {
     setTimeout(() => { btn.innerHTML = originalText; btn.style.backgroundColor = ""; btn.style.borderColor = "#ff9500"; btn.style.color = "#ff9500"; btn.disabled = false; }, 4000);
 }
 
+async function checkBalance(channel) {
+    const btn = document.getElementById(`btnBal-${channel}`);
+    const originalText = btn.innerHTML;
+    btn.innerHTML = "⏳ 查询中...";
+    btn.disabled = true;
+
+    let key = document.getElementById(`${channel}Key`).value.trim();
+    let url = document.getElementById(`${channel}Url`).value.trim();
+
+    if (!key) { alert("⚠️ 请先在上方填写该通道的 API Key！"); btn.innerHTML = originalText; btn.disabled = false; return; }
+
+    try {
+        const res = await fetch(`${API_BASE_URL}/admin/check_balance`, {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ admin_key: currentUserKey, api_key: key, base_url: url })
+        });
+        const d = await res.json();
+        if (d.success) {
+            btn.innerHTML = typeof d.balance === 'number' ? `💲 余额: $${d.balance.toFixed(4)}` : `✅ ${d.balance}`;
+            btn.style.backgroundColor = "var(--bg-hover)";
+            btn.style.borderColor = "var(--border-color)";
+            btn.style.color = "var(--text-main)";
+        } else {
+            btn.innerHTML = "❌ 查询失败";
+            alert("余额查询失败：\n" + (d.msg || "未知错误"));
+        }
+    } catch (e) {
+        btn.innerHTML = "❌ 网络超时";
+    }
+    setTimeout(() => { btn.innerHTML = originalText; btn.style.backgroundColor = ""; btn.style.borderColor = "#ff9500"; btn.style.color = "#ff9500"; btn.disabled = false; }, 4000);
+}
+
 async function testApiConnection(channel) {
     const btn = document.getElementById(`btnTest-${channel}`);
     const originalText = btn.innerHTML;
