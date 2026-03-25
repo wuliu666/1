@@ -473,16 +473,48 @@ def bulk_update_category():
 def get_config():
     if request.json.get('admin_key') != MASTER_KEY: return jsonify({"error": "无权"}), 403
     keys = load_keys()
-    return jsonify(keys.get('__GLOBAL_CONFIG__', {"gemini_key": "", "geeknow_key": "", "grsai_key": ""}))
+    default_conf = {"gemini_key": "", "geeknow_url": "https://www.geeknow.top/v1", "geeknow_key": "", "grsai_url": "https://api.grsai.com/v1", "grsai_key": ""}
+    return jsonify(keys.get('__GLOBAL_CONFIG__', default_conf))
 
 @app.route('/admin/save_config', methods=['POST'])
 def save_config():
     data = request.json
     if data.get('admin_key') != MASTER_KEY: return jsonify({"error": "无权"}), 403
     keys = load_keys()
-    keys['__GLOBAL_CONFIG__'] = {"gemini_key": data.get('gemini_key', ''),"geeknow_key": data.get('geeknow_key', ''),"grsai_key": data.get('grsai_key', '')}
+    keys['__GLOBAL_CONFIG__'] = {
+        "gemini_key": data.get('gemini_key', ''),
+        "geeknow_url": data.get('geeknow_url', 'https://www.geeknow.top/v1'),
+        "geeknow_key": data.get('geeknow_key', ''),
+        "grsai_url": data.get('grsai_url', 'https://api.grsai.com/v1'),
+        "grsai_key": data.get('grsai_key', '')
+    }
     save_keys(keys)
     return jsonify({"success": True})
+
+@app.route('/admin/test_api', methods=['POST'])
+def test_api():
+    data = request.json
+    if data.get('admin_key') != MASTER_KEY: return jsonify({"error": "无权"}), 403
+    channel = data.get('channel')
+    api_key = data.get('api_key')
+    base_url = data.get('base_url', '')
+
+    try:
+        if channel == 'gemini':
+            genai.configure(api_key=api_key)
+            model = genai.GenerativeModel('gemini-1.5-flash')
+            resp = model.generate_content("Hello")
+            if resp.text: return jsonify({"success": True})
+        else:
+            headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+            payload = {"model": "gpt-4o-mini" if channel == "grsai" else "gemini-3-pro-preview", "messages": [{"role": "user", "content": "Hello"}], "max_tokens": 5}
+            test_url = f"{base_url.rstrip('/')}/chat/completions"
+            r = requests.post(test_url, json=payload, headers=headers, timeout=15)
+            if r.ok: return jsonify({"success": True})
+            else: return jsonify({"success": False, "msg": f"接口报错 {r.status_code}: {r.text[:80]}"})
+    except Exception as e:
+        return jsonify({"success": False, "msg": str(e)[:80]})
+    return jsonify({"success": False, "msg": "未知错误"})
 
 # 核心路由：精准隔离“普通闲聊”与“分镜剧本”的提示词环境
 @app.route('/chat', methods=['POST'])
@@ -538,7 +570,12 @@ def chat():
                 headers = {"Authorization": f"Bearer {dynamic_key}", "Content-Type": "application/json"}
                 # 开启 stream=True
                 payload = {"model": actual_model_name, "messages": messages, "temperature": 0.7, "stream": True}
-                api_url = "https://www.geeknow.top/v1/chat/completions" if source == "geeknow" else "https://api.grsai.com/v1/chat/completions"
+                
+                if source == "geeknow":
+                    base = global_conf.get('geeknow_url', 'https://www.geeknow.top/v1').rstrip('/')
+                else:
+                    base = global_conf.get('grsai_url', 'https://api.grsai.com/v1').rstrip('/')
+                api_url = f"{base}/chat/completions"
                 
                 resp = requests.post(api_url, json=payload, headers=headers, stream=True, timeout=60)
                 if not resp.ok:

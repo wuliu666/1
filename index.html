@@ -203,9 +203,33 @@
                 </div>
             </div>
             <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 12px;">提示：前端用户切换 API 通道时，下拉框会精确呈现该通道下配置的模型列表。</p>
-        </div>
+       </div>
 
-       
+        <div id="adminTab-api" class="admin-tab-content" style="display: none;">
+            <p style="font-size:0.8rem; color:var(--text-secondary); margin-bottom: 15px;">配置各通道的接口地址与密钥。配置完成后强烈建议点击测试按钮检查连通状态。</p>
+            
+            <div style="border: 1px solid var(--border-color); border-radius: 10px; padding: 15px; margin-bottom: 12px; background: var(--bg-container);">
+                <h4 style="margin: 0 0 10px 0; color: var(--text-main);">🌐 Google 官方直连 (Gemini)</h4>
+                <div class="setting-row"><label>🔑 API Key</label><input type="password" id="geminiKey" placeholder="AIzaSy..."></div>
+                <button class="nav-btn" onclick="testApiConnection('gemini')" id="btnTest-gemini" style="width: 100%; margin-top: 5px;">⚡ 连通性测试</button>
+            </div>
+            
+            <div style="border: 1px solid var(--border-color); border-radius: 10px; padding: 15px; margin-bottom: 12px; background: var(--bg-container);">
+                <h4 style="margin: 0 0 10px 0; color: var(--text-main);">🚀 GeekNow 中转</h4>
+                <div class="setting-row"><label>🔗 Base URL</label><input type="text" id="geeknowUrl" placeholder="https://www.geeknow.top/v1"></div>
+                <div class="setting-row"><label>🔑 API Key</label><input type="password" id="geeknowKey" placeholder="sk-..."></div>
+                <button class="nav-btn" onclick="testApiConnection('geeknow')" id="btnTest-geeknow" style="width: 100%; margin-top: 5px;">⚡ 连通性测试</button>
+            </div>
+
+            <div style="border: 1px solid var(--border-color); border-radius: 10px; padding: 15px; background: var(--bg-container);">
+                <h4 style="margin: 0 0 10px 0; color: var(--text-main);">⚡ GRSAI 中转</h4>
+                <div class="setting-row"><label>🔗 Base URL</label><input type="text" id="grsaiUrl" placeholder="https://api.grsai.com/v1"></div>
+                <div class="setting-row"><label>🔑 API Key</label><input type="password" id="grsaiKey" placeholder="sk-..."></div>
+                <button class="nav-btn" onclick="testApiConnection('grsai')" id="btnTest-grsai" style="width: 100%; margin-top: 5px;">⚡ 连通性测试</button>
+            </div>
+
+            <button class="modal-btn btn-confirm" style="width: 100%; margin-top: 15px;" onclick="saveApiSettings()">💾 永久保存全部配置</button>
+        </div>
 
         <div id="adminTab-logs" class="admin-tab-content" style="display: none;"><div style="max-height:400px; overflow-y:auto; border:1px solid var(--border-color); border-radius:10px;"><table style="width:100%; border-collapse: collapse; text-align: left; font-size: 0.85rem;"><thead style="background: var(--bg-hover); position: sticky; top: 0;"><tr><th style="padding: 10px; border-bottom: 1px solid var(--border-color); width: 140px;">时间</th><th style="padding: 10px; border-bottom: 1px solid var(--border-color); width: 100px;">操作人</th><th style="padding: 10px; border-bottom: 1px solid var(--border-color);">动作记录</th></tr></thead><tbody id="auditLogTableBody"></tbody></table></div></div>
         

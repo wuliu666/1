@@ -256,10 +256,80 @@ function openConfirmModal(callback) { pendingConfirmCallback = callback; documen
 function closeConfirmModal() { document.getElementById('confirmModal').classList.remove('show'); pendingConfirmCallback = null; }
 function executeConfirm() { if(pendingConfirmCallback) pendingConfirmCallback(); closeConfirmModal(); }
 
-async function loadApiSettings() { try { const res = await fetch(`${API_BASE_URL}/admin/get_config`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({admin_key: currentUserKey}) }); if(res.ok) { const d = await res.json(); document.getElementById('geminiKey').value = d.gemini_key || ''; document.getElementById('geeknowKey').value = d.geeknow_key || ''; document.getElementById('grsaiKey').value = d.grsai_key || ''; } } catch(e) {} }
-async function saveApiSettings() { const payload = { admin_key: currentUserKey, gemini_key: document.getElementById('geminiKey').value.trim(), geeknow_key: document.getElementById('geeknowKey').value.trim(), grsai_key: document.getElementById('grsaiKey').value.trim() }; try { await fetch(`${API_BASE_URL}/admin/save_config`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) }); showToast("✅ API 密钥配置已永久保存！"); addAuditLog('更新了全局多通道 API 密钥矩阵'); } catch(e) { alert("保存失败"); } }
+async function loadApiSettings() { 
+    try { 
+        const res = await fetch(`${API_BASE_URL}/admin/get_config`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({admin_key: currentUserKey}) }); 
+        if(res.ok) { 
+            const d = await res.json(); 
+            document.getElementById('geminiKey').value = d.gemini_key || ''; 
+            document.getElementById('geeknowKey').value = d.geeknow_key || ''; 
+            document.getElementById('geeknowUrl').value = d.geeknow_url || 'https://www.geeknow.top/v1'; 
+            document.getElementById('grsaiKey').value = d.grsai_key || ''; 
+            document.getElementById('grsaiUrl').value = d.grsai_url || 'https://api.grsai.com/v1'; 
+        } 
+    } catch(e) {} 
+}
+
+async function saveApiSettings() { 
+    const payload = { 
+        admin_key: currentUserKey, 
+        gemini_key: document.getElementById('geminiKey').value.trim(), 
+        geeknow_url: document.getElementById('geeknowUrl').value.trim() || 'https://www.geeknow.top/v1',
+        geeknow_key: document.getElementById('geeknowKey').value.trim(), 
+        grsai_url: document.getElementById('grsaiUrl').value.trim() || 'https://api.grsai.com/v1',
+        grsai_key: document.getElementById('grsaiKey').value.trim() 
+    }; 
+    try { 
+        await fetch(`${API_BASE_URL}/admin/save_config`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) }); 
+        showToast("✅ 通道与地址配置已永久保存！"); 
+        addAuditLog('更新了通道的基础接口配置与密钥矩阵'); 
+    } catch(e) { alert("保存失败"); } 
+}
+
+async function testApiConnection(channel) {
+    const btn = document.getElementById(`btnTest-${channel}`);
+    const originalText = btn.innerHTML;
+    btn.innerHTML = "⏳ 正在发送探测包...";
+    btn.disabled = true;
+
+    let key = document.getElementById(`${channel}Key`).value.trim();
+    let url = channel === 'gemini' ? '' : document.getElementById(`${channel}Url`).value.trim();
+
+    if (!key) { alert("⚠️ 请先在上方输入框填写该通道的 API Key！"); btn.innerHTML = originalText; btn.disabled = false; return; }
+
+    try {
+        const res = await fetch(`${API_BASE_URL}/admin/test_api`, {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ admin_key: currentUserKey, channel: channel, api_key: key, base_url: url })
+        });
+        const d = await res.json();
+        if (d.success) {
+            btn.innerHTML = "✅ 通道连通正常，测试通过！";
+            btn.style.backgroundColor = "#34c759"; btn.style.color = "white"; btn.style.borderColor = "#34c759";
+        } else {
+            btn.innerHTML = "❌ 测试失败，请检查";
+            btn.style.backgroundColor = "#ff3b30"; btn.style.color = "white"; btn.style.borderColor = "#ff3b30";
+            alert("连通性错误信息返回：\n\n" + (d.msg || "未知错误"));
+        }
+    } catch (e) {
+        btn.innerHTML = "❌ 请求超时或网络不通";
+        btn.style.backgroundColor = "#ff3b30"; btn.style.color = "white"; btn.style.borderColor = "#ff3b30";
+    }
+
+    setTimeout(() => { btn.innerHTML = originalText; btn.style.backgroundColor = ""; btn.style.color = ""; btn.style.borderColor = ""; btn.disabled = false; }, 3500);
+}
+
 let targetQuotaKey = null;
-function switchAdminTab(tabName) { document.querySelectorAll('.admin-tab-btn').forEach(b => b.classList.remove('active')); document.querySelectorAll('.admin-tab-content').forEach(c => c.classList.remove('active')); document.getElementById(`tabBtn-${tabName}`).classList.add('active'); document.getElementById(`adminTab-${tabName}`).classList.add('active'); if(tabName === 'keys') refreshKeyList(); if(tabName === 'models') renderAdminModels(); if(tabName === 'logs') renderAuditLogs(); if(tabName === 'api') loadApiSettings(); }
+function switchAdminTab(tabName) { 
+    document.querySelectorAll('.admin-tab-btn').forEach(b => b.classList.remove('active')); 
+    document.querySelectorAll('.admin-tab-content').forEach(c => c.classList.remove('active')); 
+    document.getElementById(`tabBtn-${tabName}`).classList.add('active'); 
+    document.getElementById(`adminTab-${tabName}`).classList.add('active'); 
+    if(tabName === 'keys') refreshKeyList(); 
+    if(tabName === 'models') renderAdminModels(); 
+    if(tabName === 'logs') renderAuditLogs(); 
+    if(tabName === 'api') loadApiSettings(); 
+}
 async function openAdminPanel() { document.getElementById('adminModal').classList.add('show'); switchAdminTab('keys'); }
 function closeAdminPanel() { document.getElementById('adminModal').classList.remove('show'); }
 
