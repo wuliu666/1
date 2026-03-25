@@ -319,10 +319,21 @@ async function testApiConnection(channel) {
 
 let targetQuotaKey = null;
 function switchAdminTab(tabName) { 
+    // 1. 移除所有按钮的高亮
     document.querySelectorAll('.admin-tab-btn').forEach(b => b.classList.remove('active')); 
-    document.querySelectorAll('.admin-tab-content').forEach(c => c.classList.remove('active')); 
+    // 2. 隐藏所有面板（彻底覆盖掉写死的 bug）
+    document.querySelectorAll('.admin-tab-content').forEach(c => {
+        c.classList.remove('active');
+        c.style.display = 'none'; 
+    }); 
+    
+    // 3. 激活当前点击的按钮和面板，并强制显形！
     document.getElementById(`tabBtn-${tabName}`).classList.add('active'); 
-    document.getElementById(`adminTab-${tabName}`).classList.add('active'); 
+    let targetTab = document.getElementById(`adminTab-${tabName}`);
+    targetTab.classList.add('active');
+    targetTab.style.display = 'block'; 
+
+    // 4. 加载对应数据
     if(tabName === 'keys') refreshKeyList(); 
     if(tabName === 'models') renderAdminModels(); 
     if(tabName === 'logs') renderAuditLogs(); 
