@@ -197,7 +197,7 @@ async function verifyKey() {
             if (savedModel && dynamicModels[savedSource].find(m => m.id === savedModel)) { document.getElementById('modelSelect').value = savedModel; }
             
             document.getElementById('keySection').style.display = 'none'; document.getElementById('headerActions').style.display = 'flex';
-            document.getElementById('adminBtn').style.display = isAdmin ? 'inline-block' : 'none'; document.getElementById('apiBtn').style.display = isAdmin ? 'inline-block' : 'none';
+           document.getElementById('adminBtn').style.display = isAdmin ? 'inline-block' : 'none';
             addAuditLog('登录系统'); switchChat(HUB_ID);
         } else { showToast("请联系管理员！"); }
     } catch(e) { showToast("网络连接失败，请确保服务器正常运行！"); } finally { btn.innerText = originalText; btn.disabled = false; }
@@ -256,11 +256,10 @@ function openConfirmModal(callback) { pendingConfirmCallback = callback; documen
 function closeConfirmModal() { document.getElementById('confirmModal').classList.remove('show'); pendingConfirmCallback = null; }
 function executeConfirm() { if(pendingConfirmCallback) pendingConfirmCallback(); closeConfirmModal(); }
 
-async function openApiModal() { document.getElementById('apiModal').classList.add('show'); try { const res = await fetch(`${API_BASE_URL}/admin/get_config`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({admin_key: currentUserKey}) }); if(res.ok) { const d = await res.json(); document.getElementById('geminiKey').value = d.gemini_key || ''; document.getElementById('geeknowKey').value = d.geeknow_key || ''; document.getElementById('grsaiKey').value = d.grsai_key || ''; } } catch(e) {} }
-function closeApiModal() { document.getElementById('apiModal').classList.remove('show'); }
-async function saveApiSettings() { const payload = { admin_key: currentUserKey, gemini_key: document.getElementById('geminiKey').value.trim(), geeknow_key: document.getElementById('geeknowKey').value.trim(), grsai_key: document.getElementById('grsaiKey').value.trim() }; try { await fetch(`${API_BASE_URL}/admin/save_config`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) }); alert("API 密钥配置已永久保存！"); addAuditLog('更新了全局多通道 API 密钥矩阵'); closeApiModal(); } catch(e) { alert("保存失败"); } }
+async function loadApiSettings() { try { const res = await fetch(`${API_BASE_URL}/admin/get_config`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({admin_key: currentUserKey}) }); if(res.ok) { const d = await res.json(); document.getElementById('geminiKey').value = d.gemini_key || ''; document.getElementById('geeknowKey').value = d.geeknow_key || ''; document.getElementById('grsaiKey').value = d.grsai_key || ''; } } catch(e) {} }
+async function saveApiSettings() { const payload = { admin_key: currentUserKey, gemini_key: document.getElementById('geminiKey').value.trim(), geeknow_key: document.getElementById('geeknowKey').value.trim(), grsai_key: document.getElementById('grsaiKey').value.trim() }; try { await fetch(`${API_BASE_URL}/admin/save_config`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) }); showToast("✅ API 密钥配置已永久保存！"); addAuditLog('更新了全局多通道 API 密钥矩阵'); } catch(e) { alert("保存失败"); } }
 let targetQuotaKey = null;
-function switchAdminTab(tabName) { document.querySelectorAll('.admin-tab-btn').forEach(b => b.classList.remove('active')); document.querySelectorAll('.admin-tab-content').forEach(c => c.classList.remove('active')); document.getElementById(`tabBtn-${tabName}`).classList.add('active'); document.getElementById(`adminTab-${tabName}`).classList.add('active'); if(tabName === 'keys') refreshKeyList(); if(tabName === 'models') renderAdminModels(); if(tabName === 'logs') renderAuditLogs(); }
+function switchAdminTab(tabName) { document.querySelectorAll('.admin-tab-btn').forEach(b => b.classList.remove('active')); document.querySelectorAll('.admin-tab-content').forEach(c => c.classList.remove('active')); document.getElementById(`tabBtn-${tabName}`).classList.add('active'); document.getElementById(`adminTab-${tabName}`).classList.add('active'); if(tabName === 'keys') refreshKeyList(); if(tabName === 'models') renderAdminModels(); if(tabName === 'logs') renderAuditLogs(); if(tabName === 'api') loadApiSettings(); }
 async function openAdminPanel() { document.getElementById('adminModal').classList.add('show'); switchAdminTab('keys'); }
 function closeAdminPanel() { document.getElementById('adminModal').classList.remove('show'); }
 

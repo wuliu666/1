@@ -205,16 +205,7 @@
             <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 12px;">提示：前端用户切换 API 通道时，下拉框会精确呈现该通道下配置的模型列表。</p>
         </div>
 
-        <div id="adminTab-api" class="admin-tab-content" style="display: none;">
-            <div style="border: 1px solid var(--border-color); border-radius: 10px; padding: 15px;">
-                <h4 style="margin: 0 0 10px 0;">🌐 配置系统通道密钥矩阵</h4>
-                <p style="font-size:0.8rem; color:var(--text-secondary); margin-bottom: 15px;">配置各通道的底层鉴权密钥。全站所有成员的请求都将通过这些密钥发起。</p>
-                <div class="setting-row"><label>🔑 Google 官方直连 API Key</label><input type="password" id="geminiKey" placeholder="AIzaSy..."></div>
-                <div class="setting-row"><label>🔑 GeekNow 中转 API Key</label><input type="password" id="geeknowKey" placeholder="sk-..."></div>
-                <div class="setting-row"><label>🔑 GRSAI 中转 API Key</label><input type="password" id="grsaiKey" placeholder="sk-..."></div>
-                <button class="modal-btn btn-confirm" style="width: 100%; margin-top: 10px;" onclick="saveApiSettings()">永久保存 API 配置</button>
-            </div>
-        </div>
+       
 
         <div id="adminTab-logs" class="admin-tab-content" style="display: none;"><div style="max-height:400px; overflow-y:auto; border:1px solid var(--border-color); border-radius:10px;"><table style="width:100%; border-collapse: collapse; text-align: left; font-size: 0.85rem;"><thead style="background: var(--bg-hover); position: sticky; top: 0;"><tr><th style="padding: 10px; border-bottom: 1px solid var(--border-color); width: 140px;">时间</th><th style="padding: 10px; border-bottom: 1px solid var(--border-color); width: 100px;">操作人</th><th style="padding: 10px; border-bottom: 1px solid var(--border-color);">动作记录</th></tr></thead><tbody id="auditLogTableBody"></tbody></table></div></div>
         
