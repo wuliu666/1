@@ -12,12 +12,13 @@
     "__GLOBAL_CONFIG__": {
         "gemini_enabled": true,
         "gemini_key": "",
+        "gemini_proxy": "",
         "geeknow_enabled": true,
         "geeknow_url": "https://www.geeknow.top/v1",
-        "geeknow_key": "sk-e96pCHp1h63NPkCVpo5tLfGVrb9Tcw7fGcmXmVy4MMzKxU7W",
+        "geeknow_key": "",
         "grsai_enabled": true,
         "grsai_url": "https://api.grsai.com/v1",
-        "grsai_key": "",
+        "grsai_key": "sk-a3a9583f4cc54dc3a7404d17c4800c22",
         "custom_channels": [],
         "dynamic_models": {
             "geeknow": [
@@ -27,11 +28,25 @@
                 }
             ],
             "gemini": [],
-            "grsai": [],
+            "grsai": [
+                {
+                    "id": "nano-banana-2",
+                    "name": "nano-banana-2",
+                    "type": "image"
+                }
+            ],
             "image": [
                 {
                     "id": "nanopro",
                     "name": "👑 Nano Banana Pro"
+                },
+                {
+                    "id": "1",
+                    "name": "1"
+                },
+                {
+                    "id": "nano-banana-2",
+                    "name": "nano-banana-2"
                 }
             ]
         }

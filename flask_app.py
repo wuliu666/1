@@ -636,6 +636,72 @@ def check_balance():
     except Exception as e:
         return jsonify({"success": False, "msg": str(e)[:80]})
 
+@app.route('/api/generate_image', methods=['POST'])
+def generate_image():
+    data = request.json
+    pwd = data.get('password')
+    prompt = data.get('prompt')
+    model = data.get('model', 'dall-e-3')
+    size = data.get('size', '1024x1024')
+    source = data.get('api_source', 'geeknow') 
+
+    keys = load_keys()
+    if pwd not in keys or keys[pwd].get("is_deleted", False): 
+        return jsonify({"error": "请联系管理员~"}), 403
+        
+    global_conf = keys.get('__GLOBAL_CONFIG__', {})
+    
+    dynamic_key = ""
+    base_url = ""
+    # 获取对应通道的 Key 和 URL
+    if source == "gemini":
+        return jsonify({"error": "Gemini 官方文本直连暂不支持直接生图，请切换至中转通道"}), 400
+    elif source == "geeknow":
+        dynamic_key = global_conf.get('geeknow_key', '')
+        base_url = global_conf.get('geeknow_url', 'https://www.geeknow.top/v1').rstrip('/')
+    elif source == "grsai":
+        dynamic_key = global_conf.get('grsai_key', '')
+        base_url = global_conf.get('grsai_url', 'https://api.grsai.com/v1').rstrip('/')
+    else:
+        for cc in global_conf.get("custom_channels", []):
+            if cc["id"] == source:
+                dynamic_key = cc.get("api_key", "")
+                base_url = cc.get("base_url", "").rstrip('/')
+                break
+
+    if not dynamic_key: 
+        return jsonify({"error": f"系统暂未配置 [{source}] 通道的 API Key"}), 400
+
+    try:
+        headers = {"Authorization": f"Bearer {dynamic_key}", "Content-Type": "application/json"}
+        # 标准 OpenAI 兼容协议的生图请求体
+        payload = {
+            "model": model,
+            "prompt": prompt,
+            "n": 1, # 生成张数，目前市面上绝大多数中转强制为 1
+            "size": size,
+            "response_format": "b64_json" # 强制要求返回 base64 格式，以兼容你前台的 ZIP 下载功能
+        }
+        
+        api_url = f"{base_url}/images/generations"
+        r = requests.post(api_url, json=payload, headers=headers, timeout=120)
+        
+        if r.ok:
+            res_data = r.json()
+            images = []
+            for item in res_data.get('data', []):
+                # 如果中转平台乖乖返回了 base64
+                if 'b64_json' in item:
+                    images.append(f"data:image/png;base64,{item['b64_json']}")
+                # 如果中转平台只支持返回直链 URL
+                elif 'url' in item:
+                    images.append(item['url'])
+            return jsonify({"success": True, "images": images})
+        else:
+            return jsonify({"success": False, "error": f"通道接口报错 ({r.status_code}): {r.text[:200]}"}), 400
+    except Exception as e:
+        return jsonify({"success": False, "error": f"请求异常: {str(e)[:100]}"}), 500
+
 @app.route('/chat', methods=['POST'])
 def chat():
     data = request.json

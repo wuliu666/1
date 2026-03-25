@@ -67,15 +67,51 @@ function init() {
 
 function toggleKeyVisibility() { const el = document.getElementById('secretKey'); el.type = el.type === 'password' ? 'text' : 'password'; }
 function clearKeyInput() { document.getElementById('secretKey').value = ''; document.getElementById('secretKey').type = 'password'; }
-function loadImageModelsToUI() { const is = document.getElementById('imgGenModelSelect'); is.innerHTML = ''; dynamicModels.image.forEach(m => is.innerHTML += `<option value="${m.id}">${m.name}</option>`); }
-
 function onApiSourceChange() {
     const source = document.getElementById('apiSourceSelect').value; const ms = document.getElementById('modelSelect'); ms.innerHTML = '';
-    if(dynamicModels[source] && dynamicModels[source].length > 0) { dynamicModels[source].forEach(m => ms.innerHTML += `<option value="${m.id}">${m.name}</option>`); } 
-    else { ms.innerHTML = `<option value="">无可用模型</option>`; }
+    if(dynamicModels[source] && dynamicModels[source].length > 0) { 
+        // 只有标记为 chat 或者老旧未标记的模型才能进入聊天控制台
+        dynamicModels[source].filter(m => !m.type || m.type === 'chat').forEach(m => ms.innerHTML += `<option value="${m.id}">${m.name}</option>`); 
+    } 
+    if(ms.innerHTML === '') { ms.innerHTML = `<option value="">无可用对话模型</option>`; }
     if(currentUserKey) { localStorage.setItem('api_source_' + currentUserKey, source); changeModel(); }
 }
 function changeModel() { if(currentUserKey) localStorage.setItem('model_type_' + currentUserKey, document.getElementById('modelSelect').value); }
+
+function loadImageModelsToUI() { 
+    const is = document.getElementById('imgGenModelSelect'); 
+    if(!is) return;
+    is.innerHTML = ''; 
+    let hasImageModels = false;
+    
+    // 兼容历史遗留的独立 image 分类数据
+    if(dynamicModels.image && dynamicModels.image.length > 0) {
+        dynamicModels.image.forEach(m => {
+            is.innerHTML += `<option value="geeknow:::${m.id}">[旧生图区] ${m.name}</option>`;
+            hasImageModels = true;
+        });
+    }
+
+    const channelNames = { gemini: '官方直连', geeknow: 'GeekNow', grsai: 'GRSAI' };
+    
+    // 遍历所有 API 通道，把标记为“image”的模型全收集过来
+    for(let channel in dynamicModels) {
+        if(channel === 'image') continue;
+        const channelName = channelNames[channel] || '自定义';
+        const models = dynamicModels[channel] || [];
+        models.forEach(m => {
+            if(m.type === 'image') {
+                // value 绑定格式为 "通道ID:::模型ID"，让后端知道去哪个通道发请求
+                is.innerHTML += `<option value="${channel}:::${m.id}">[${channelName}] ${m.name}</option>`;
+                hasImageModels = true;
+            }
+        });
+    }
+    
+    if(!hasImageModels) {
+        is.innerHTML = `<option value="">未配置生图模型</option>`;
+    }
+}
 
 async function checkHeartbeat() {
     if(!currentUserKey || !currentSessionToken) return;
@@ -172,20 +208,23 @@ function renderChannelModels(channelId) {
     const models = dynamicModels[channelId] || [];
     if(models.length === 0) { container.innerHTML = `<span style="font-size:0.8rem; color:var(--text-secondary);">暂无模型，请添加</span>`; return; }
     models.forEach(m => {
-        container.innerHTML += `<div style="background:var(--bg-user-msg); color:white; border-radius:15px; padding:4px 10px; font-size:0.8rem; display:flex; align-items:center; gap:6px;"><span>${m.name}</span><span style="cursor:pointer; color:#ffb3b3; font-weight:bold;" onclick="removeChannelModel('${channelId}', '${m.id}')" title="移除此模型">×</span></div>`;
+        const icon = m.type === 'image' ? '🎨' : '💬';
+        container.innerHTML += `<div style="background:var(--bg-user-msg); color:white; border-radius:15px; padding:4px 10px; font-size:0.8rem; display:flex; align-items:center; gap:6px;"><span>${icon} ${m.name}</span><span style="cursor:pointer; color:#ffb3b3; font-weight:bold;" onclick="removeChannelModel('${channelId}', '${m.id}')" title="移除此模型">×</span></div>`;
     });
 }
 
 function addChannelModel(channelId) {
     const idInput = document.getElementById(`newModelId-${channelId}`);
     const nameInput = document.getElementById(`newModelName-${channelId}`);
+    const typeInput = document.getElementById(`newModelType-${channelId}`);
     const id = idInput.value.trim(); const name = nameInput.value.trim();
+    const type = typeInput ? typeInput.value : 'chat';
     if(!id || !name) return alert('请填写完整的模型标识和显示名');
     if(!dynamicModels[channelId]) dynamicModels[channelId] = [];
     if(dynamicModels[channelId].find(m => m.id === id)) return alert('该模型标识已存在！');
-    dynamicModels[channelId].push({id, name});
+    dynamicModels[channelId].push({id, name, type});
     idInput.value = ''; nameInput.value = '';
-    renderChannelModels(channelId); onApiSourceChange(); 
+    renderChannelModels(channelId); onApiSourceChange(); loadImageModelsToUI();
 }
 
 function removeChannelModel(channelId, modelId) {
@@ -219,6 +258,7 @@ function addCustomChannelUI(data = null) {
                 <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">📦 此通道挂载的模型：</div>
                 <div id="modelList-${id}" style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px;"></div>
                 <div style="display: flex; gap: 6px;">
+                    <select id="newModelType-${id}" style="padding:6px; border-radius:6px; border:1px solid var(--border-color); font-size:0.8rem; background:var(--bg-input); color:var(--text-main); outline:none;"><option value="chat">💬 对话</option><option value="image">🎨 生图</option></select>
                     <input type="text" id="newModelId-${id}" placeholder="标识" style="flex:1; padding:6px; border-radius:6px; border:1px solid var(--border-color); font-size:0.8rem; background:var(--bg-input); color:var(--text-main);">
                     <input type="text" id="newModelName-${id}" placeholder="显示名" style="flex:1; padding:6px; border-radius:6px; border:1px solid var(--border-color); font-size:0.8rem; background:var(--bg-input); color:var(--text-main);">
                     <button class="nav-btn" onclick="addChannelModel('${id}')" style="padding: 6px 12px; font-size:0.85rem;">➕ 添加</button>
@@ -413,8 +453,48 @@ async function generateNewKey() { const ak = localStorage.getItem('user_secret_k
 function openQuotaModal(key, currentLimit) { targetQuotaKey = key; document.getElementById('quotaInput').value = currentLimit; document.getElementById('quotaModal').classList.add('show'); }
 function closeQuotaModal() { document.getElementById('quotaModal').classList.remove('show'); targetQuotaKey = null; }
 function saveQuota() { const val = parseInt(document.getElementById('quotaInput').value); if(isNaN(val) || val < 0) return alert("请输入有效整数"); userUsages[targetQuotaKey].limit = val; localStorage.setItem('sys_user_usages', JSON.stringify(userUsages)); addAuditLog(`修改了额度为: ${val}`); closeQuotaModal(); refreshKeyList(); }
-function renderAdminModels() { const source = document.getElementById('adminApiFilter').value; const tl = document.getElementById('textModelList'); const il = document.getElementById('imageModelList'); tl.innerHTML = ''; il.innerHTML = ''; if(dynamicModels[source]) { dynamicModels[source].forEach(m => tl.innerHTML += `<div class="model-item-row"><span>${m.name} (${m.id})</span><button class="action-btn delete-action" style="font-size:12px;" onclick="removeModel('text', '${m.id}')" title="移除此模型">🗑️</button></div>`); } if(dynamicModels.image) { dynamicModels.image.forEach(m => il.innerHTML += `<div class="model-item-row"><span>${m.name} (${m.id})</span><button class="action-btn delete-action" style="font-size:12px;" onclick="removeModel('image', '${m.id}')" title="移除此模型">🗑️</button></div>`); } }
-function addModel(type) { if (type === 'image') { const id = document.getElementById('newImageModelId').value.trim(); const name = document.getElementById('newImageModelName').value.trim(); if(!id || !name) return alert("必填"); dynamicModels.image.push({id, name}); document.getElementById('newImageModelId').value = ''; document.getElementById('newImageModelName').value = ''; } else { const source = document.getElementById('adminApiFilter').value; const id = document.getElementById('newTextModelId').value.trim(); const name = document.getElementById('newTextModelName').value.trim(); if(!id || !name) return alert("必填"); if(!dynamicModels[source]) dynamicModels[source] = []; dynamicModels[source].push({id, name}); document.getElementById('newTextModelId').value = ''; document.getElementById('newTextModelName').value = ''; } localStorage.setItem('sys_dynamic_models', JSON.stringify(dynamicModels)); renderAdminModels(); onApiSourceChange(); loadImageModelsToUI(); }
+function renderAdminModels() { 
+    const il = document.getElementById('imageModelList'); 
+    if(!il) return;
+    il.innerHTML = ''; 
+    if(dynamicModels.image) { 
+        dynamicModels.image.forEach(m => {
+            il.innerHTML += `<div style="background:var(--bg-input); padding:10px 14px; border-radius:8px; display:flex; justify-content:space-between; align-items:center; border:1px solid var(--border-color);"><span style="font-size:0.95rem; font-weight:500; color:var(--text-main);">${m.name} <span style="color:var(--text-secondary); font-size:0.8rem; margin-left:8px; font-family:monospace; font-weight:normal;">[${m.id}]</span></span><button class="log-action-btn" style="color:var(--danger-color); padding:4px 8px; font-size:1.1rem;" onclick="removeModel('image', '${m.id}')" title="下架此模型">🗑️</button></div>`; 
+        });
+    } 
+}
+
+function addModel(type) { 
+    if (type !== 'image') return;
+    const id = document.getElementById('newImageModelId').value.trim(); 
+    const name = document.getElementById('newImageModelName').value.trim(); 
+    if(!id || !name) return alert("⚠️ 请填写完整的底层接口标识和展示名称！"); 
+    if(dynamicModels.image.find(m => m.id === id)) return alert("⚠️ 该模型标识已存在，无需重复添加！");
+    
+    dynamicModels.image.push({id, name}); 
+    document.getElementById('newImageModelId').value = ''; 
+    document.getElementById('newImageModelName').value = ''; 
+    
+    localStorage.setItem('sys_dynamic_models', JSON.stringify(dynamicModels)); 
+    renderAdminModels(); 
+    loadImageModelsToUI(); 
+    
+    // 强制触发一次云端覆盖保存，确保全站成员都能拉取到最新模型列表
+    saveApiSettings();
+}
+
+function removeModel(type, id) { 
+    if(type !== 'image') return;
+    if(dynamicModels.image.length <= 1) return alert("❌ 为了防止生图控制台崩溃，必须至少保留一个生图模型！"); 
+    
+    dynamicModels.image = dynamicModels.image.filter(m => m.id !== id); 
+    localStorage.setItem('sys_dynamic_models', JSON.stringify(dynamicModels)); 
+    renderAdminModels(); 
+    loadImageModelsToUI(); 
+    
+    // 强制触发一次云端覆盖保存
+    saveApiSettings();
+}
 function removeModel(type, id) { const source = type === 'image' ? 'image' : document.getElementById('adminApiFilter').value; if(dynamicModels[source].length <= 1) return alert("至少保留一个模型"); dynamicModels[source] = dynamicModels[source].filter(m => m.id !== id); localStorage.setItem('sys_dynamic_models', JSON.stringify(dynamicModels)); renderAdminModels(); onApiSourceChange(); loadImageModelsToUI(); }
 
 let currentAuditLogsData = [];
@@ -680,7 +760,7 @@ function previewGenImage(input) { if (input.files && input.files[0]) { const rea
 function clearGenImage() { currentUploadedImageBase64 = null; document.getElementById('imgGenUpload').value = ''; document.getElementById('imgUploadPreview').style.display = 'none'; document.getElementById('imgUploadPreview').innerHTML = ''; }
 function generateMockImageBase64(text, w=512, h=512) { const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h; const ctx = canvas.getContext('2d'); ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--bg-user-msg') || '#007AFF'; ctx.fillRect(0,0,w,h); ctx.fillStyle = '#fff'; ctx.font = 'bold 36px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(text, w/2, h/2); return canvas.toDataURL('image/png'); }
 
-function sendImageGenMessage() {
+async function sendImageGenMessage() {
     let u = getUserUsage(currentUserKey);
     if (u.images >= u.limit) return alert(`您的生图额度已耗尽 (已用 ${u.images} / 额度 ${u.limit})，请联系管理员增加额度！`);
 
@@ -691,8 +771,22 @@ function sendImageGenMessage() {
     const chat = chats.find(c => c.id === IMAGE_GEN_ID) || chats.find(c => c.id === currentChatId); if(!chat) return;
     
     const w = document.getElementById('imgWidth').value; const h = document.getElementById('imgHeight').value;
-    const sel = document.getElementById('imgGenModelSelect'); const modelText = sel.options[sel.selectedIndex].text;
+    const sel = document.getElementById('imgGenModelSelect'); 
+    const rawVal = sel.value; 
+    const modelText = sel.options[sel.selectedIndex].text;
     const styleValue = document.getElementById('stylePresetSelect').value;
+
+    let apiSource = 'geeknow';
+    let modelId = rawVal;
+    
+    // 解析我们在 loadImageModelsToUI 中注入的 "通道ID:::模型ID" 格式
+    if(rawVal.includes(':::')) {
+        const parts = rawVal.split(':::');
+        apiSource = parts[0];
+        modelId = parts[1];
+    } else {
+        apiSource = document.getElementById('apiSourceSelect') ? document.getElementById('apiSourceSelect').value : 'geeknow';
+    }
 
     let styleText = "";
     if(styleValue === 'guoman') styleText = "，高质量国漫精绘风格";
@@ -702,18 +796,50 @@ function sendImageGenMessage() {
     const systemConstraint = " 【强制底层约束：重新使用大模型生成，漫画或画面中的文本必须全部使用简体中文，不要有乱码，不要有繁体字】";
     const negativePrompt = "反向提示词：bad anatomy, traditional chinese characters, gibberish, messy text, garbled characters";
 
-    const finalEngineeredPrompt = (msg || '（无提示词）') + styleText + systemConstraint + "\n" + negativePrompt;
+    let finalEngineeredPrompt = (msg || '（无提示词）') + styleText + systemConstraint + "\n" + negativePrompt;
+    if (currentUploadedImageBase64 && currentUploadedImageBase64.startsWith('http')) {
+        finalEngineeredPrompt = currentUploadedImageBase64 + " " + finalEngineeredPrompt;
+    }
 
     document.getElementById('imgGenSettingsPanel').style.display = 'none';
     chat.messages.push({ role: 'user', content: `【模型】${modelText}\n【尺寸设定】${currentSelectedRatioText} (${w}x${h}) | ${currentSelectedResText}\n【提示词】${finalEngineeredPrompt}`, attachedImage: currentUploadedImageBase64, timestamp: Date.now() });
     input.value = ''; if(document.getElementById('imgGenInput')) document.getElementById('imgGenInput').value = '';
     clearGenImage(); renderMessages();
     
-    setTimeout(() => {
-        incrementUsage(currentUserKey); addAuditLog(`使用了 ${modelText} 生成图片`); 
-        const mockImages = [generateMockImageBase64(`图像1\n(${w}x${h})`), generateMockImageBase64(`图像2\n(${w}x${h})`), generateMockImageBase64(`图像3\n(${w}x${h})`), generateMockImageBase64(`图像4\n(${w}x${h})`)];
-        chat.messages.push({ role: 'bot', type: 'image_gallery', content: '展示阵列：', images: mockImages, timestamp: Date.now() }); saveChats(); renderMessages();
-    }, 1500);
+    const botMsgIndex = chat.messages.length;
+    chat.messages.push({ role: 'bot', content: '', timestamp: Date.now(), isThinking: true });
+    renderMessages();
+
+    try {
+        const res = await fetch(`${API_BASE_URL}/api/generate_image`, {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                password: currentUserKey,
+                prompt: finalEngineeredPrompt,
+                model: modelId,
+                size: `${w}x${h}`,
+                api_source: apiSource
+            })
+        });
+
+        const d = await res.json();
+        chat.messages[botMsgIndex].isThinking = false;
+
+        if (d.success && d.images && d.images.length > 0) {
+            incrementUsage(currentUserKey); 
+            addAuditLog(`调用 ${modelText} 生成了图片`); 
+            chat.messages[botMsgIndex].content = '绘制完成：';
+            chat.messages[botMsgIndex].type = 'image_gallery';
+            chat.messages[botMsgIndex].images = d.images; 
+        } else {
+            chat.messages[botMsgIndex].content = "❌ 绘制失败: \n" + (d.error || "未知原因");
+        }
+    } catch(e) {
+        chat.messages[botMsgIndex].isThinking = false;
+        chat.messages[botMsgIndex].content = "❌ 网络异常，无法连接到服务器进行生图。";
+    }
+
+    saveChats(); renderMessages();
 }
 function downloadSingleImage(base64Data, index) { const link = document.createElement('a'); link.href = base64Data; link.download = `Img_${index+1}.png`; link.click(); }
 function downloadGalleryZip(msgIndex) {

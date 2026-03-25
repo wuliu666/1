@@ -172,35 +172,21 @@
         <div id="adminTab-keys" class="admin-tab-content active"><div style="display:flex; gap:10px; margin-bottom:15px;"><input type="text" id="newKeyNote" placeholder="请输入使用者备注 (如: 张三)" style="flex:1; padding:10px; border-radius:8px; border:1px solid var(--border-color);"><button class="modal-btn btn-confirm" onclick="generateNewKey()">生成密钥</button></div><div style="max-height:350px; overflow-y:auto; border:1px solid var(--border-color); border-radius:10px;"><table style="width:100%; border-collapse: collapse; text-align: left; font-size: 0.9rem;"><thead style="background: var(--bg-hover); position: sticky; top: 0; z-index: 1;"><tr><th style="padding: 10px; border-bottom: 1px solid var(--border-color); width: 25%;">访问密钥</th><th style="padding: 10px; border-bottom: 1px solid var(--border-color);">备注</th><th style="padding: 10px; border-bottom: 1px solid var(--border-color);">已生图 / 额度</th><th style="padding: 10px; border-bottom: 1px solid var(--border-color); width: 170px;">操作</th></tr></thead><tbody id="keyTableBody"></tbody></table></div></div>
         
         <div id="adminTab-models" class="admin-tab-content" style="display: none;">
-            <div style="display: flex; gap: 20px;">
-                <div style="flex: 1; border: 1px solid var(--border-color); border-radius: 10px; padding: 12px;">
-                    <h4 style="margin: 0 0 10px 0; display: flex; justify-content: space-between; align-items: center;">
-                        💬 文本大模型配置
-                        <select id="adminApiFilter" style="padding: 4px; border-radius: 6px; border: 1px solid var(--border-color); font-size: 0.8rem;" onchange="renderAdminModels()">
-                            <option value="gemini">Gemini官方</option>
-                            <option value="geeknow">GeekNow中转</option>
-                            <option value="grsai">GRSAI中转</option>
-                        </select>
-                    </h4>
-                    <div id="textModelList" style="margin-bottom: 10px; max-height: 200px; overflow-y: auto;"></div>
-                    <div style="display: flex; gap: 6px;">
-                        <input type="text" id="newTextModelId" placeholder="标识(如 gpt-4o)" style="flex:1; padding:6px; border-radius:6px; border:1px solid var(--border-color);">
-                        <input type="text" id="newTextModelName" placeholder="显示名" style="flex:1; padding:6px; border-radius:6px; border:1px solid var(--border-color);">
-                        <button class="nav-btn" onclick="addModel('text')">添加</button>
+            <p style="font-size:0.8rem; color:var(--text-secondary); margin-bottom: 15px;">统一指挥部：管理“AI 生图控制台”及特殊工具的底层驱动模型。您可以自由上架/下架，并自定义前端展示名称（支持 Emoji 如 ✨推荐）。</p>
+            
+            <div style="border: 1px solid var(--border-color); border-radius: 10px; padding: 15px; background: var(--bg-container);">
+                <h4 style="margin: 0 0 15px 0; color: var(--text-main);">🎨 图像引擎 / 特殊模型池</h4>
+                <div id="imageModelList" style="margin-bottom: 15px; max-height: 300px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px;">
                     </div>
-                </div>
-                <div style="flex: 1; border: 1px solid var(--border-color); border-radius: 10px; padding: 12px;">
-                    <h4 style="margin: 0 0 10px 0;">🎨 图像生成模型</h4>
-                    <div id="imageModelList" style="margin-bottom: 10px; max-height: 200px; overflow-y: auto;"></div>
-                    <div style="display: flex; gap: 6px;">
-                        <input type="text" id="newImageModelId" placeholder="标识(如 mj-v6)" style="flex:1; padding:6px; border-radius:6px; border:1px solid var(--border-color);">
-                        <input type="text" id="newImageModelName" placeholder="显示名" style="flex:1; padding:6px; border-radius:6px; border:1px solid var(--border-color);">
-                        <button class="nav-btn" onclick="addModel('image')">添加</button>
-                    </div>
+                <div style="display: flex; gap: 8px; border-top: 1px dashed var(--border-color); padding-top: 15px;">
+                    <input type="text" id="newImageModelId" placeholder="底层接口模型标识 (如 nanopro)" style="flex:1; padding:8px 12px; border-radius:6px; border:1px solid var(--border-color); font-size:0.85rem; background:var(--bg-input); color:var(--text-main); outline:none;">
+                    <input type="text" id="newImageModelName" placeholder="前端展示名称 (如 👑 Nano Banana Pro)" style="flex:1; padding:8px 12px; border-radius:6px; border:1px solid var(--border-color); font-size:0.85rem; background:var(--bg-input); color:var(--text-main); outline:none;">
+                    <button class="nav-btn" onclick="addModel('image')" style="padding: 8px 20px;">➕ 添加上架</button>
                 </div>
             </div>
-            <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 12px;">提示：前端用户切换 API 通道时，下拉框会精确呈现该通道下配置的模型列表。</p>
-       </div>
+            
+            <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 15px;">* 提示：文本问答类大模型的挂载与管理，现已全面迁移至【🌐 API 通道】内进行独立绑定。</p>
+        </div>
 
       <div id="adminTab-api" class="admin-tab-content" style="display: none;">
             <p style="font-size:0.8rem; color:var(--text-secondary); margin-bottom: 15px;">配置各通道接口及挂载模型。保存后全站成员的下拉框将自动云端同步更新。</p>
@@ -217,6 +203,7 @@
                     <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">📦 此通道挂载的模型：</div>
                     <div id="modelList-gemini" style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px;"></div>
                     <div style="display: flex; gap: 6px;">
+                        <select id="newModelType-gemini" style="padding:6px; border-radius:6px; border:1px solid var(--border-color); font-size:0.8rem; background:var(--bg-input); color:var(--text-main); outline:none;"><option value="chat">💬 对话</option><option value="image">🎨 生图</option></select>
                         <input type="text" id="newModelId-gemini" placeholder="标识(如 gemini-1.5-pro)" style="flex:1; padding:6px; border-radius:6px; border:1px solid var(--border-color); font-size:0.8rem; background:var(--bg-input); color:var(--text-main);">
                         <input type="text" id="newModelName-gemini" placeholder="显示名" style="flex:1; padding:6px; border-radius:6px; border:1px solid var(--border-color); font-size:0.8rem; background:var(--bg-input); color:var(--text-main);">
                         <button class="nav-btn" onclick="addChannelModel('gemini')" style="padding: 6px 12px; font-size:0.85rem;">➕ 添加</button>
@@ -239,6 +226,7 @@
                     <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">📦 此通道挂载的模型：</div>
                     <div id="modelList-geeknow" style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px;"></div>
                     <div style="display: flex; gap: 6px;">
+                        <select id="newModelType-geeknow" style="padding:6px; border-radius:6px; border:1px solid var(--border-color); font-size:0.8rem; background:var(--bg-input); color:var(--text-main); outline:none;"><option value="chat">💬 对话</option><option value="image">🎨 生图</option></select>
                         <input type="text" id="newModelId-geeknow" placeholder="标识(如 gpt-4o)" style="flex:1; padding:6px; border-radius:6px; border:1px solid var(--border-color); font-size:0.8rem; background:var(--bg-input); color:var(--text-main);">
                         <input type="text" id="newModelName-geeknow" placeholder="显示名" style="flex:1; padding:6px; border-radius:6px; border:1px solid var(--border-color); font-size:0.8rem; background:var(--bg-input); color:var(--text-main);">
                         <button class="nav-btn" onclick="addChannelModel('geeknow')" style="padding: 6px 12px; font-size:0.85rem;">➕ 添加</button>
@@ -261,6 +249,7 @@
                     <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">📦 此通道挂载的模型：</div>
                     <div id="modelList-grsai" style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px;"></div>
                     <div style="display: flex; gap: 6px;">
+                        <select id="newModelType-grsai" style="padding:6px; border-radius:6px; border:1px solid var(--border-color); font-size:0.8rem; background:var(--bg-input); color:var(--text-main); outline:none;"><option value="chat">💬 对话</option><option value="image">🎨 生图</option></select>
                         <input type="text" id="newModelId-grsai" placeholder="标识(如 gpt-4o)" style="flex:1; padding:6px; border-radius:6px; border:1px solid var(--border-color); font-size:0.8rem; background:var(--bg-input); color:var(--text-main);">
                         <input type="text" id="newModelName-grsai" placeholder="显示名" style="flex:1; padding:6px; border-radius:6px; border:1px solid var(--border-color); font-size:0.8rem; background:var(--bg-input); color:var(--text-main);">
                         <button class="nav-btn" onclick="addChannelModel('grsai')" style="padding: 6px 12px; font-size:0.85rem;">➕ 添加</button>
