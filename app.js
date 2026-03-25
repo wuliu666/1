@@ -1,5 +1,5 @@
 // ⚡ 注意：必须把这里的 IP 替换为您真实的腾讯云公网 IP！
-const API_BASE_URL = "http://124.223.40.104:5000"; 
+const API_BASE_URL = "http://124.223.40.104:5006"; 
 const HUB_ID = 'STORYBOARD_HUB'; 
 const IMAGE_SPLIT_ID = 'IMAGE_SPLIT_TOOL';
 const IMAGE_GEN_ID = 'IMAGE_GEN_TOOL'; 
