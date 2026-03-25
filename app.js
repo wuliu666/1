@@ -219,14 +219,33 @@ function removeChannelModel(channelId, modelId) {
 function updateAdminModelFilterUI(custom_channels = []) {
     const filter = document.getElementById('newImageModelSource');
     if(!filter) return;
+    
+    // 记住当前选中的值，避免刷新时跳回默认值
     const currentVal = filter.value;
-    filter.innerHTML = `<option value="geeknow">🚀 GeekNow</option><option value="grsai">⚡ GRSAI</option><option value="gemini">🌐 官方直连</option>`;
-    custom_channels.forEach(cc => {
-        filter.innerHTML += `<option value="${cc.id}">🔌 ${cc.name}</option>`;
-        if (!dynamicModels[cc.id]) dynamicModels[cc.id] = [];
-    });
+    
+    // 初始化三个固定的系统内置通道
+    let optionsHTML = `
+        <option value="geeknow">🚀 GeekNow 中转</option>
+        <option value="grsai">⚡ GRSAI 中转</option>
+        <option value="gemini">🌐 官方 Gemini 直连</option>
+    `;
+    
+    // 动态遍历并追加所有在【API通道】里配置的自定义通道
+    if (custom_channels && custom_channels.length > 0) {
+        custom_channels.forEach(cc => {
+            optionsHTML += `<option value="${cc.id}">🔌 ${cc.name} (自定义)</option>`;
+            if (!dynamicModels[cc.id]) dynamicModels[cc.id] = [];
+        });
+    }
+    
+    // 将生成的 HTML 注入下拉框
+    filter.innerHTML = optionsHTML;
+    
     localStorage.setItem('sys_dynamic_models', JSON.stringify(dynamicModels));
+    
+    // 尝试恢复之前选中的值，如果该通道已被删除，则默认选中 geeknow
     filter.value = Array.from(filter.options).some(o => o.value === currentVal) ? currentVal : 'geeknow';
+    
     renderAdminModels();
 }
 
