@@ -210,7 +210,8 @@
                     <h4 style="margin: 0; color: var(--text-main);">🌐 Google 官方直连 (Gemini)</h4>
                     <label style="display: flex; align-items: center; gap: 5px; cursor: pointer; font-size: 0.85rem;"><input type="checkbox" id="geminiEnable" checked> 启用通道</label>
                 </div>
-                <div class="setting-row"><label>🔑 API Key</label><input type="password" id="geminiKey" placeholder="AIzaSy..."></div>
+                <div class="setting-row"><label>🌍 网络代理 (可选)</label><input type="text" id="geminiProxy" placeholder="http://127.0.0.1:7890 (国内服务器必填)"></div>
+                <div class="setting-row"><label>🔑 API Key</label><input type="text" id="geminiKey" placeholder="AIzaSy..." title="系统已开启高级安全脱敏保护"></div>
                 <button class="nav-btn" onclick="testApiConnection('gemini')" id="btnTest-gemini" style="width: 100%; margin-top: 5px;">⚡ 连通性测试</button>
                 <div style="margin-top: 15px; border-top: 1px dashed var(--border-color); padding-top: 15px;">
                     <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">📦 此通道挂载的模型：</div>
@@ -229,7 +230,7 @@
                     <label style="display: flex; align-items: center; gap: 5px; cursor: pointer; font-size: 0.85rem;"><input type="checkbox" id="geeknowEnable" checked> 启用通道</label>
                 </div>
                 <div class="setting-row"><label>🔗 Base URL</label><input type="text" id="geeknowUrl" placeholder="https://www.geeknow.top/v1"></div>
-                <div class="setting-row"><label>🔑 API Key</label><input type="password" id="geeknowKey" placeholder="sk-..."></div>
+                <div class="setting-row"><label>🔑 API Key</label><input type="text" id="geeknowKey" placeholder="sk-..." title="系统已开启高级安全脱敏保护"></div>
                 <div style="display: flex; gap: 10px; margin-top: 5px;">
                     <button class="nav-btn" onclick="testApiConnection('geeknow')" id="btnTest-geeknow" style="flex: 1;">⚡ 连通性测试</button>
                     <button class="nav-btn" onclick="checkBalance('geeknow')" id="btnBal-geeknow" style="flex: 1; border-color: #ff9500; color: #ff9500;">💰 查询余额</button>
@@ -251,7 +252,7 @@
                     <label style="display: flex; align-items: center; gap: 5px; cursor: pointer; font-size: 0.85rem;"><input type="checkbox" id="grsaiEnable" checked> 启用通道</label>
                 </div>
                 <div class="setting-row"><label>🔗 Base URL</label><input type="text" id="grsaiUrl" placeholder="https://api.grsai.com/v1"></div>
-                <div class="setting-row"><label>🔑 API Key</label><input type="password" id="grsaiKey" placeholder="sk-..."></div>
+                <div class="setting-row"><label>🔑 API Key</label><input type="text" id="grsaiKey" placeholder="sk-..." title="系统已开启高级安全脱敏保护"></div>
                 <div style="display: flex; gap: 10px; margin-top: 5px;">
                     <button class="nav-btn" onclick="testApiConnection('grsai')" id="btnTest-grsai" style="flex: 1;">⚡ 连通性测试</button>
                     <button class="nav-btn" onclick="checkBalance('grsai')" id="btnBal-grsai" style="flex: 1; border-color: #ff9500; color: #ff9500;">💰 查询余额</button>
@@ -270,6 +271,11 @@
             <div id="customChannelsContainer"></div>
             <button class="nav-btn" onclick="addCustomChannelUI()" style="width: 100%; border-style: dashed; border-color: var(--text-secondary); margin-bottom: 15px; padding: 12px; background: transparent; color: var(--text-main);">➕ 添加自定义兼容通道 (支持 OneAPI 等)</button>
             <button class="modal-btn btn-confirm" style="width: 100%; margin-top: 5px;" onclick="saveApiSettings()">💾 永久保存全部配置并全局下发</button>
+            
+            <div style="display: flex; gap: 10px; margin-top: 15px; border-top: 1px solid var(--border-color); padding-top: 15px;">
+                <button class="nav-btn" onclick="exportApiConfig()" style="flex: 1;">📥 导出配置备份</button>
+                <button class="nav-btn" onclick="triggerImportConfig()" style="flex: 1;">📤 导入配置备份</button>
+            </div>
         </div>
 
         <div id="adminTab-logs" class="admin-tab-content" style="display: none;"><div style="max-height:400px; overflow-y:auto; border:1px solid var(--border-color); border-radius:10px;"><table style="width:100%; border-collapse: collapse; text-align: left; font-size: 0.85rem;"><thead style="background: var(--bg-hover); position: sticky; top: 0;"><tr><th style="padding: 10px; border-bottom: 1px solid var(--border-color); width: 140px;">时间</th><th style="padding: 10px; border-bottom: 1px solid var(--border-color); width: 100px;">操作人</th><th style="padding: 10px; border-bottom: 1px solid var(--border-color);">动作记录</th></tr></thead><tbody id="auditLogTableBody"></tbody></table></div></div>

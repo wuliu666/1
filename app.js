@@ -209,7 +209,7 @@ function addCustomChannelUI(data = null) {
                 <label style="display: flex; align-items: center; gap: 5px; cursor: pointer; font-size: 0.85rem;"><input type="checkbox" class="cc-enable" ${enabled ? 'checked' : ''}> 启用</label>
             </div>
             <div class="setting-row"><label>🔗 Base URL</label><input type="text" class="cc-url" value="${url}" placeholder="https://api.xxx.com/v1"></div>
-            <div class="setting-row"><label>🔑 API Key</label><input type="password" class="cc-key" value="${key}" placeholder="sk-..."></div>
+            <div class="setting-row"><label>🔑 API Key</label><input type="text" class="cc-key" value="${key}" placeholder="sk-..." title="系统已开启高级安全脱敏保护"></div>
             <div style="display: flex; gap: 10px; margin-top: 5px;">
                 <button class="nav-btn" onclick="testCustomConnection('${id}', this)" style="flex: 1;">⚡ 连通性测试</button>
                 <button class="nav-btn" onclick="checkCustomBalance('${id}', this)" style="flex: 1; border-color: #ff9500; color: #ff9500;">💰 查询余额</button>
@@ -236,6 +236,7 @@ async function loadApiSettings() {
             const d = await res.json(); 
             document.getElementById('geminiEnable').checked = d.gemini_enabled !== false;
             document.getElementById('geminiKey').value = d.gemini_key || ''; 
+            document.getElementById('geminiProxy').value = d.gemini_proxy || ''; 
             document.getElementById('geeknowEnable').checked = d.geeknow_enabled !== false;
             document.getElementById('geeknowKey').value = d.geeknow_key || ''; 
             document.getElementById('geeknowUrl').value = d.geeknow_url || 'https://www.geeknow.top/v1'; 
@@ -261,7 +262,7 @@ async function saveApiSettings() {
 
     const payload = { 
         admin_key: currentUserKey, 
-        gemini_enabled: document.getElementById('geminiEnable').checked, gemini_key: document.getElementById('geminiKey').value.trim(), 
+        gemini_enabled: document.getElementById('geminiEnable').checked, gemini_key: document.getElementById('geminiKey').value.trim(), gemini_proxy: document.getElementById('geminiProxy').value.trim(),
         geeknow_enabled: document.getElementById('geeknowEnable').checked, geeknow_url: document.getElementById('geeknowUrl').value.trim(), geeknow_key: document.getElementById('geeknowKey').value.trim(), 
         grsai_enabled: document.getElementById('grsaiEnable').checked, grsai_url: document.getElementById('grsaiUrl').value.trim(), grsai_key: document.getElementById('grsaiKey').value.trim(),
         custom_channels: custom_channels, dynamic_models: dynamicModels
@@ -272,12 +273,41 @@ async function saveApiSettings() {
     } catch(e) { alert("保存失败"); } 
 }
 
+function exportApiConfig() {
+    fetch(`${API_BASE_URL}/admin/export_config`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({admin_key: currentUserKey}) })
+    .then(res => res.json()).then(d => {
+        if(d.success) {
+            const blob = new Blob([JSON.stringify(d.config, null, 2)], {type: "application/json"});
+            const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = `API通道备份_${new Date().getTime()}.json`; link.click();
+            addAuditLog('导出了全站通道配置备份');
+        } else alert("导出失败");
+    });
+}
+
+function triggerImportConfig() {
+    const input = document.createElement('input'); input.type = 'file'; input.accept = '.json';
+    input.onchange = e => {
+        const file = e.target.files[0]; if(!file) return;
+        const reader = new FileReader();
+        reader.onload = async ev => {
+            try {
+                const config = JSON.parse(ev.target.result);
+                const res = await fetch(`${API_BASE_URL}/admin/import_config`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({admin_key: currentUserKey, config: config}) });
+                const d = await res.json();
+                if(d.success) { showToast("✅ 备份导入成功！即将刷新..."); addAuditLog('通过 JSON 文件覆盖了通道配置'); setTimeout(() => location.reload(), 1500); } 
+                else alert("导入失败");
+            } catch(err) { alert("文件损坏或非合法 JSON！"); }
+        }; reader.readAsText(file);
+    }; input.click();
+}
+
 async function testApiConnection(channel) {
     const btn = document.getElementById(`btnTest-${channel}`); const originalText = btn.innerHTML; btn.innerHTML = "⏳ 测试中..."; btn.disabled = true;
     let key = document.getElementById(`${channel}Key`).value.trim(); let url = channel === 'gemini' ? '' : document.getElementById(`${channel}Url`).value.trim();
+    let proxy = channel === 'gemini' ? document.getElementById('geminiProxy').value.trim() : '';
     if (!key) { alert("⚠️ 请先填写 API Key！"); btn.innerHTML = originalText; btn.disabled = false; return; }
     try {
-        const res = await fetch(`${API_BASE_URL}/admin/test_api`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ admin_key: currentUserKey, channel: channel, api_key: key, base_url: url }) });
+        const res = await fetch(`${API_BASE_URL}/admin/test_api`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ admin_key: currentUserKey, channel: channel, api_key: key, base_url: url, proxy: proxy }) });
         const d = await res.json();
         if (d.success) { btn.innerHTML = "✅ 测试通过！"; btn.style.cssText = "width:100%; margin-top:5px; background:#34c759; color:white; border-color:#34c759;"; } else { btn.innerHTML = "❌ 测试失败"; alert(d.msg); }
     } catch (e) { btn.innerHTML = "❌ 网络异常"; } setTimeout(() => { btn.innerHTML = originalText; btn.style.cssText = "width:100%; margin-top:5px;"; btn.disabled = false; }, 3500);

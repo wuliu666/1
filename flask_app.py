@@ -326,7 +326,7 @@ def verify():
             "status": "success", 
             "is_admin": (pwd == MASTER_KEY), 
             "note": keys[pwd].get("note", "Creator"), 
-            "channels_list": channels_list, 
+            "channels_list": channels_list,
             "dynamic_models": global_conf.get("dynamic_models", {})
         })
     return jsonify({"error": "请输入你的内容"}), 403
@@ -479,36 +479,92 @@ def bulk_update_category():
     conn.close()
     return jsonify({"success": True})
 
+# ================= 后台全量配置与测试接口 =================
+def mask_secret(secret):
+    if not secret: return ""
+    if len(secret) <= 6: return "******"
+    return secret[:3] + "******" + secret[-4:]
+
+def resolve_secret_from_masked(input_key, global_conf):
+    if "******" not in input_key: return input_key
+    all_real_keys = []
+    if global_conf.get("gemini_key"): all_real_keys.append(global_conf.get("gemini_key"))
+    if global_conf.get("geeknow_key"): all_real_keys.append(global_conf.get("geeknow_key"))
+    if global_conf.get("grsai_key"): all_real_keys.append(global_conf.get("grsai_key"))
+    for cc in global_conf.get("custom_channels", []):
+        if cc.get("api_key"): all_real_keys.append(cc.get("api_key"))
+    for real_k in all_real_keys:
+        if mask_secret(real_k) == input_key: return real_k
+    return input_key
+
 @app.route('/admin/get_config', methods=['POST'])
 def get_config():
     if request.json.get('admin_key') != MASTER_KEY: return jsonify({"error": "无权"}), 403
     keys = load_keys()
-    default_conf = {
-        "gemini_enabled": True, "gemini_key": "", 
-        "geeknow_enabled": True, "geeknow_url": "https://www.geeknow.top/v1", "geeknow_key": "", 
-        "grsai_enabled": True, "grsai_url": "https://api.grsai.com/v1", "grsai_key": "",
-        "custom_channels": [],
-        "dynamic_models": {"gemini": [], "geeknow": [], "grsai": [], "image": [{"id":"nanopro", "name":"👑 Nano Banana Pro"}]}
+    conf = keys.get('__GLOBAL_CONFIG__', {})
+    
+    custom_channels_masked = []
+    for cc in conf.get('custom_channels', []):
+        cc_copy = dict(cc)
+        cc_copy['api_key'] = mask_secret(cc_copy.get('api_key', ''))
+        custom_channels_masked.append(cc_copy)
+
+    masked_conf = {
+        "gemini_enabled": conf.get('gemini_enabled', True),
+        "gemini_key": mask_secret(conf.get('gemini_key', '')),
+        "gemini_proxy": conf.get('gemini_proxy', ''),
+        "geeknow_enabled": conf.get('geeknow_enabled', True),
+        "geeknow_url": conf.get('geeknow_url', 'https://www.geeknow.top/v1'),
+        "geeknow_key": mask_secret(conf.get('geeknow_key', '')),
+        "grsai_enabled": conf.get('grsai_enabled', True),
+        "grsai_url": conf.get('grsai_url', 'https://api.grsai.com/v1'),
+        "grsai_key": mask_secret(conf.get('grsai_key', '')),
+        "custom_channels": custom_channels_masked,
+        "dynamic_models": conf.get('dynamic_models', {"gemini": [], "geeknow": [], "grsai": [], "image": [{"id":"nanopro", "name":"👑 Nano Banana Pro"}]})
     }
-    return jsonify(keys.get('__GLOBAL_CONFIG__', default_conf))
+    return jsonify(masked_conf)
 
 @app.route('/admin/save_config', methods=['POST'])
 def save_config():
     data = request.json
     if data.get('admin_key') != MASTER_KEY: return jsonify({"error": "无权"}), 403
     keys = load_keys()
+    old_conf = keys.get('__GLOBAL_CONFIG__', {})
+    
+    custom_channels = []
+    for cc in data.get('custom_channels', []):
+        cc_copy = dict(cc)
+        cc_copy['api_key'] = resolve_secret_from_masked(cc.get("api_key", ""), old_conf)
+        custom_channels.append(cc_copy)
+
     keys['__GLOBAL_CONFIG__'] = {
         "gemini_enabled": data.get('gemini_enabled', True),
-        "gemini_key": data.get('gemini_key', ''),
+        "gemini_key": resolve_secret_from_masked(data.get('gemini_key', ''), old_conf),
+        "gemini_proxy": data.get('gemini_proxy', ''),
         "geeknow_enabled": data.get('geeknow_enabled', True),
         "geeknow_url": data.get('geeknow_url', 'https://www.geeknow.top/v1'),
-        "geeknow_key": data.get('geeknow_key', ''),
+        "geeknow_key": resolve_secret_from_masked(data.get('geeknow_key', ''), old_conf),
         "grsai_enabled": data.get('grsai_enabled', True),
         "grsai_url": data.get('grsai_url', 'https://api.grsai.com/v1'),
-        "grsai_key": data.get('grsai_key', ''),
-        "custom_channels": data.get('custom_channels', []),
+        "grsai_key": resolve_secret_from_masked(data.get('grsai_key', ''), old_conf),
+        "custom_channels": custom_channels,
         "dynamic_models": data.get('dynamic_models', {})
     }
+    save_keys(keys)
+    return jsonify({"success": True})
+
+@app.route('/admin/export_config', methods=['POST'])
+def export_config():
+    if request.json.get('admin_key') != MASTER_KEY: return jsonify({"error": "无权"}), 403
+    keys = load_keys()
+    return jsonify({"success": True, "config": keys.get('__GLOBAL_CONFIG__', {})})
+
+@app.route('/admin/import_config', methods=['POST'])
+def import_config():
+    data = request.json
+    if data.get('admin_key') != MASTER_KEY: return jsonify({"error": "无权"}), 403
+    keys = load_keys()
+    keys['__GLOBAL_CONFIG__'] = data.get('config', {})
     save_keys(keys)
     return jsonify({"success": True})
 
@@ -517,14 +573,25 @@ def test_api():
     data = request.json
     if data.get('admin_key') != MASTER_KEY: return jsonify({"error": "无权"}), 403
     channel = data.get('channel')
-    api_key = data.get('api_key')
+    
+    # 还原真实 Key 进行测速
+    keys = load_keys()
+    old_conf = keys.get('__GLOBAL_CONFIG__', {})
+    api_key = resolve_secret_from_masked(data.get('api_key', ''), old_conf)
     base_url = data.get('base_url', '')
 
     try:
         if channel == 'gemini':
+            proxy = data.get('proxy', '')
+            if proxy:
+                os.environ['http_proxy'] = proxy
+                os.environ['https_proxy'] = proxy
             genai.configure(api_key=api_key)
             model = genai.GenerativeModel('gemini-1.5-flash')
             resp = model.generate_content("Hello")
+            if proxy:
+                os.environ.pop('http_proxy', None)
+                os.environ.pop('https_proxy', None)
             if resp.text: return jsonify({"success": True})
         else:
             headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
@@ -541,7 +608,11 @@ def test_api():
 def check_balance():
     data = request.json
     if data.get('admin_key') != MASTER_KEY: return jsonify({"error": "无权"}), 403
-    api_key = data.get('api_key')
+    
+    # 还原真实 Key 查询余额
+    keys = load_keys()
+    old_conf = keys.get('__GLOBAL_CONFIG__', {})
+    api_key = resolve_secret_from_masked(data.get('api_key', ''), old_conf)
     base_url = data.get('base_url', '').rstrip('/')
     
     try:
@@ -554,7 +625,7 @@ def check_balance():
         else:
             r2 = requests.get(f"{base_url}/dashboard/billing/usage", headers=headers, timeout=10)
             if r2.ok:
-                return jsonify({"success": True, "balance": "无法获取精确数值，但计费接口连通正常"})
+                return jsonify({"success": True, "balance": "连通正常 (该平台不提供精确数字)"})
             return jsonify({"success": False, "msg": f"接口报错 {r.status_code}: {r.text[:80]}"})
     except Exception as e:
         return jsonify({"success": False, "msg": str(e)[:80]})
@@ -580,6 +651,13 @@ def chat():
     base_url = ""
     if source == "gemini":
         dynamic_key = global_conf.get('gemini_key', '')
+        gemini_proxy = global_conf.get('gemini_proxy', '')
+        if gemini_proxy:
+            os.environ['http_proxy'] = gemini_proxy
+            os.environ['https_proxy'] = gemini_proxy
+        else:
+            os.environ.pop('http_proxy', None)
+            os.environ.pop('https_proxy', None)
     elif source == "geeknow":
         dynamic_key = global_conf.get('geeknow_key', '')
         base_url = global_conf.get('geeknow_url', 'https://www.geeknow.top/v1').rstrip('/')
