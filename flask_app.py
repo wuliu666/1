@@ -322,7 +322,13 @@ def verify():
         for cc in global_conf.get("custom_channels", []):
             if cc.get("enabled", True): channels_list.append({"id": cc["id"], "name": cc["name"]})
             
-        return jsonify({"status": "success", "is_admin": (pwd == MASTER_KEY), "note": keys[pwd].get("note", "Creator"), "channels_list": channels_list})
+        return jsonify({
+            "status": "success", 
+            "is_admin": (pwd == MASTER_KEY), 
+            "note": keys[pwd].get("note", "Creator"), 
+            "channels_list": channels_list, 
+            "dynamic_models": global_conf.get("dynamic_models", {})
+        })
     return jsonify({"error": "请输入你的内容"}), 403
 
 @app.route('/api/change_key', methods=['POST'])
@@ -481,7 +487,8 @@ def get_config():
         "gemini_enabled": True, "gemini_key": "", 
         "geeknow_enabled": True, "geeknow_url": "https://www.geeknow.top/v1", "geeknow_key": "", 
         "grsai_enabled": True, "grsai_url": "https://api.grsai.com/v1", "grsai_key": "",
-        "custom_channels": []
+        "custom_channels": [],
+        "dynamic_models": {"gemini": [], "geeknow": [], "grsai": [], "image": [{"id":"nanopro", "name":"👑 Nano Banana Pro"}]}
     }
     return jsonify(keys.get('__GLOBAL_CONFIG__', default_conf))
 
@@ -499,7 +506,8 @@ def save_config():
         "grsai_enabled": data.get('grsai_enabled', True),
         "grsai_url": data.get('grsai_url', 'https://api.grsai.com/v1'),
         "grsai_key": data.get('grsai_key', ''),
-        "custom_channels": data.get('custom_channels', [])
+        "custom_channels": data.get('custom_channels', []),
+        "dynamic_models": data.get('dynamic_models', {})
     }
     save_keys(keys)
     return jsonify({"success": True})

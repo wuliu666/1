@@ -114,6 +114,13 @@ async function verifyKey() {
             if (!chats.find(c => c.id === IMAGE_GEN_ID)) { chats.push({id: IMAGE_GEN_ID, title: "AI生图记录", messages: [], isImageGen: true}); saveChats(); }
             getUserUsage(p); localStorage.setItem('sys_user_usages', JSON.stringify(userUsages));
             
+            // 收到云端的全局模型包后直接全覆盖！
+            if (d.dynamic_models && Object.keys(d.dynamic_models).length > 0) {
+                dynamicModels = d.dynamic_models;
+            }
+            if (!dynamicModels.image || dynamicModels.image.length === 0) { dynamicModels.image = [ {id:'nanopro', name:'👑 Nano Banana Pro'} ]; }
+            loadImageModelsToUI();
+
             const sourceSelect = document.getElementById('apiSourceSelect');
             sourceSelect.innerHTML = '';
             if (d.channels_list && d.channels_list.length > 0) {
@@ -156,6 +163,36 @@ function closeConfirmModal() { document.getElementById('confirmModal').classList
 function executeConfirm() { if(pendingConfirmCallback) pendingConfirmCallback(); closeConfirmModal(); }
 
 // =============== 扩展通道 UI 生成 ===============
+
+function renderChannelModels(channelId) {
+    const container = document.getElementById(`modelList-${channelId}`);
+    if (!container) return;
+    container.innerHTML = '';
+    const models = dynamicModels[channelId] || [];
+    if(models.length === 0) { container.innerHTML = `<span style="font-size:0.8rem; color:var(--text-secondary);">暂无模型，请添加</span>`; return; }
+    models.forEach(m => {
+        container.innerHTML += `<div style="background:var(--bg-user-msg); color:white; border-radius:15px; padding:4px 10px; font-size:0.8rem; display:flex; align-items:center; gap:6px;"><span>${m.name}</span><span style="cursor:pointer; color:#ffb3b3; font-weight:bold;" onclick="removeChannelModel('${channelId}', '${m.id}')" title="移除此模型">×</span></div>`;
+    });
+}
+
+function addChannelModel(channelId) {
+    const idInput = document.getElementById(`newModelId-${channelId}`);
+    const nameInput = document.getElementById(`newModelName-${channelId}`);
+    const id = idInput.value.trim(); const name = nameInput.value.trim();
+    if(!id || !name) return alert('请填写完整的模型标识和显示名');
+    if(!dynamicModels[channelId]) dynamicModels[channelId] = [];
+    if(dynamicModels[channelId].find(m => m.id === id)) return alert('该模型标识已存在！');
+    dynamicModels[channelId].push({id, name});
+    idInput.value = ''; nameInput.value = '';
+    renderChannelModels(channelId); onApiSourceChange(); 
+}
+
+function removeChannelModel(channelId, modelId) {
+    if(!dynamicModels[channelId]) return;
+    dynamicModels[channelId] = dynamicModels[channelId].filter(m => m.id !== modelId);
+    renderChannelModels(channelId); onApiSourceChange();
+}
+
 function addCustomChannelUI(data = null) {
     const container = document.getElementById('customChannelsContainer');
     const id = data ? data.id : 'custom_' + Date.now();
@@ -177,23 +214,19 @@ function addCustomChannelUI(data = null) {
                 <button class="nav-btn" onclick="testCustomConnection('${id}', this)" style="flex: 1;">⚡ 连通性测试</button>
                 <button class="nav-btn" onclick="checkCustomBalance('${id}', this)" style="flex: 1; border-color: #ff9500; color: #ff9500;">💰 查询余额</button>
             </div>
+            <div style="margin-top: 15px; border-top: 1px dashed var(--border-color); padding-top: 15px;">
+                <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">📦 此通道挂载的模型：</div>
+                <div id="modelList-${id}" style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px;"></div>
+                <div style="display: flex; gap: 6px;">
+                    <input type="text" id="newModelId-${id}" placeholder="标识" style="flex:1; padding:6px; border-radius:6px; border:1px solid var(--border-color); font-size:0.8rem; background:var(--bg-input); color:var(--text-main);">
+                    <input type="text" id="newModelName-${id}" placeholder="显示名" style="flex:1; padding:6px; border-radius:6px; border:1px solid var(--border-color); font-size:0.8rem; background:var(--bg-input); color:var(--text-main);">
+                    <button class="nav-btn" onclick="addChannelModel('${id}')" style="padding: 6px 12px; font-size:0.85rem;">➕ 添加</button>
+                </div>
+            </div>
         </div>
     `;
     container.insertAdjacentHTML('beforeend', html);
-}
-
-function updateAdminModelFilterUI(custom_channels = []) {
-    const filter = document.getElementById('adminApiFilter');
-    if(!filter) return;
-    const currentVal = filter.value;
-    filter.innerHTML = `<option value="gemini">Gemini官方</option><option value="geeknow">GeekNow中转</option><option value="grsai">GRSAI中转</option>`;
-    custom_channels.forEach(cc => {
-        filter.innerHTML += `<option value="${cc.id}">${cc.name}</option>`;
-        if (!dynamicModels[cc.id]) dynamicModels[cc.id] = [];
-    });
-    localStorage.setItem('sys_dynamic_models', JSON.stringify(dynamicModels));
-    filter.value = Array.from(filter.options).some(o => o.value === currentVal) ? currentVal : 'gemini';
-    renderAdminModels();
+    renderChannelModels(id);
 }
 
 async function loadApiSettings() { 
@@ -209,10 +242,13 @@ async function loadApiSettings() {
             document.getElementById('grsaiEnable').checked = d.grsai_enabled !== false;
             document.getElementById('grsaiKey').value = d.grsai_key || ''; 
             document.getElementById('grsaiUrl').value = d.grsai_url || 'https://api.grsai.com/v1'; 
+            
+            if(d.dynamic_models && Object.keys(d.dynamic_models).length > 0) { dynamicModels = d.dynamic_models; }
 
             document.getElementById('customChannelsContainer').innerHTML = '';
             if(d.custom_channels) d.custom_channels.forEach(cc => addCustomChannelUI(cc));
-            updateAdminModelFilterUI(d.custom_channels || []);
+            
+            renderChannelModels('gemini'); renderChannelModels('geeknow'); renderChannelModels('grsai');
         } 
     } catch(e) {} 
 }
@@ -226,13 +262,13 @@ async function saveApiSettings() {
     const payload = { 
         admin_key: currentUserKey, 
         gemini_enabled: document.getElementById('geminiEnable').checked, gemini_key: document.getElementById('geminiKey').value.trim(), 
-        geeknow_enabled: document.getElementById('geeknowEnable').checked, geeknow_url: document.getElementById('geeknowUrl').value.trim() || 'https://www.geeknow.top/v1', geeknow_key: document.getElementById('geeknowKey').value.trim(), 
-        grsai_enabled: document.getElementById('grsaiEnable').checked, grsai_url: document.getElementById('grsaiUrl').value.trim() || 'https://api.grsai.com/v1', grsai_key: document.getElementById('grsaiKey').value.trim(),
-        custom_channels: custom_channels
+        geeknow_enabled: document.getElementById('geeknowEnable').checked, geeknow_url: document.getElementById('geeknowUrl').value.trim(), geeknow_key: document.getElementById('geeknowKey').value.trim(), 
+        grsai_enabled: document.getElementById('grsaiEnable').checked, grsai_url: document.getElementById('grsaiUrl').value.trim(), grsai_key: document.getElementById('grsaiKey').value.trim(),
+        custom_channels: custom_channels, dynamic_models: dynamicModels
     }; 
     try { 
         await fetch(`${API_BASE_URL}/admin/save_config`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) }); 
-        showToast("✅ 通道与扩展配置已永久保存！"); addAuditLog('修改了全站底层通道配置'); updateAdminModelFilterUI(custom_channels);
+        showToast("✅ 接口通道及模型已云端保存，所有成员将同步生效！"); addAuditLog('全局修改了通道接口与模型分配'); 
     } catch(e) { alert("保存失败"); } 
 }
 
@@ -243,7 +279,7 @@ async function testApiConnection(channel) {
     try {
         const res = await fetch(`${API_BASE_URL}/admin/test_api`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ admin_key: currentUserKey, channel: channel, api_key: key, base_url: url }) });
         const d = await res.json();
-        if (d.success) { btn.innerHTML = "✅ 连通正常！"; btn.style.cssText = "width:100%; margin-top:5px; background:#34c759; color:white; border-color:#34c759;"; } else { btn.innerHTML = "❌ 测试失败"; alert(d.msg); }
+        if (d.success) { btn.innerHTML = "✅ 测试通过！"; btn.style.cssText = "width:100%; margin-top:5px; background:#34c759; color:white; border-color:#34c759;"; } else { btn.innerHTML = "❌ 测试失败"; alert(d.msg); }
     } catch (e) { btn.innerHTML = "❌ 网络异常"; } setTimeout(() => { btn.innerHTML = originalText; btn.style.cssText = "width:100%; margin-top:5px;"; btn.disabled = false; }, 3500);
 }
 
@@ -251,6 +287,26 @@ async function checkBalance(channel) {
     const btn = document.getElementById(`btnBal-${channel}`); const originalText = btn.innerHTML; btn.innerHTML = "⏳ 查询中..."; btn.disabled = true;
     let key = document.getElementById(`${channel}Key`).value.trim(); let url = document.getElementById(`${channel}Url`).value.trim();
     if (!key) { alert("⚠️ 请先填写 API Key！"); btn.innerHTML = originalText; btn.disabled = false; return; }
+    try {
+        const res = await fetch(`${API_BASE_URL}/admin/check_balance`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ admin_key: currentUserKey, api_key: key, base_url: url }) });
+        const d = await res.json();
+        if (d.success) { btn.innerHTML = typeof d.balance === 'number' ? `💲 余额: $${d.balance.toFixed(4)}` : `✅ ${d.balance}`; btn.style.cssText = "flex:1; background:var(--bg-hover); color:var(--text-main); border-color:var(--border-color);"; } else { btn.innerHTML = "❌ 查询失败"; alert(d.msg); }
+    } catch (e) { btn.innerHTML = "❌ 网络异常"; } setTimeout(() => { btn.innerHTML = originalText; btn.style.cssText = "flex:1; border-color:#ff9500; color:#ff9500;"; btn.disabled = false; }, 4000);
+}
+
+async function testCustomConnection(id, btn) {
+    const block = btn.parentElement.parentElement; const url = block.querySelector('.cc-url').value.trim(); const key = block.querySelector('.cc-key').value.trim();
+    const originalText = btn.innerHTML; if (!key || !url) { alert("⚠️ 必须填写 Base URL 和 API Key！"); return; } btn.innerHTML = "⏳ 测试中..."; btn.disabled = true;
+    try {
+        const res = await fetch(`${API_BASE_URL}/admin/test_api`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ admin_key: currentUserKey, channel: 'custom', api_key: key, base_url: url }) });
+        const d = await res.json();
+        if (d.success) { btn.innerHTML = "✅ 连通正常！"; btn.style.cssText = "flex:1; background:#34c759; color:white; border-color:#34c759;"; } else { btn.innerHTML = "❌ 测试失败"; alert(d.msg); }
+    } catch (e) { btn.innerHTML = "❌ 网络异常"; } setTimeout(() => { btn.innerHTML = originalText; btn.style.cssText = "flex:1;"; btn.disabled = false; }, 3500);
+}
+
+async function checkCustomBalance(id, btn) {
+    const block = btn.parentElement.parentElement; const url = block.querySelector('.cc-url').value.trim(); const key = block.querySelector('.cc-key').value.trim();
+    const originalText = btn.innerHTML; if (!key || !url) { alert("⚠️ 必须填写 Base URL 和 API Key！"); return; } btn.innerHTML = "⏳ 查询中..."; btn.disabled = true;
     try {
         const res = await fetch(`${API_BASE_URL}/admin/check_balance`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ admin_key: currentUserKey, api_key: key, base_url: url }) });
         const d = await res.json();
