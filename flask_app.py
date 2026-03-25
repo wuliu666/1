@@ -315,12 +315,14 @@ def verify():
         conn.close()
         
         global_conf = keys.get('__GLOBAL_CONFIG__', {})
-        active_channels = {
-            "gemini": global_conf.get("gemini_enabled", True),
-            "geeknow": global_conf.get("geeknow_enabled", True),
-            "grsai": global_conf.get("grsai_enabled", True)
-        }
-        return jsonify({"status": "success", "is_admin": (pwd == MASTER_KEY), "note": keys[pwd].get("note", "Creator"), "active_channels": active_channels})
+        channels_list = []
+        if global_conf.get("gemini_enabled", True): channels_list.append({"id": "gemini", "name": "🌐 Gemini"})
+        if global_conf.get("geeknow_enabled", True): channels_list.append({"id": "geeknow", "name": "🚀 GeekNow"})
+        if global_conf.get("grsai_enabled", True): channels_list.append({"id": "grsai", "name": "⚡ GRSAI"})
+        for cc in global_conf.get("custom_channels", []):
+            if cc.get("enabled", True): channels_list.append({"id": cc["id"], "name": cc["name"]})
+            
+        return jsonify({"status": "success", "is_admin": (pwd == MASTER_KEY), "note": keys[pwd].get("note", "Creator"), "channels_list": channels_list})
     return jsonify({"error": "请输入你的内容"}), 403
 
 @app.route('/api/change_key', methods=['POST'])
@@ -478,7 +480,8 @@ def get_config():
     default_conf = {
         "gemini_enabled": True, "gemini_key": "", 
         "geeknow_enabled": True, "geeknow_url": "https://www.geeknow.top/v1", "geeknow_key": "", 
-        "grsai_enabled": True, "grsai_url": "https://api.grsai.com/v1", "grsai_key": ""
+        "grsai_enabled": True, "grsai_url": "https://api.grsai.com/v1", "grsai_key": "",
+        "custom_channels": []
     }
     return jsonify(keys.get('__GLOBAL_CONFIG__', default_conf))
 
@@ -495,7 +498,8 @@ def save_config():
         "geeknow_key": data.get('geeknow_key', ''),
         "grsai_enabled": data.get('grsai_enabled', True),
         "grsai_url": data.get('grsai_url', 'https://api.grsai.com/v1'),
-        "grsai_key": data.get('grsai_key', '')
+        "grsai_key": data.get('grsai_key', ''),
+        "custom_channels": data.get('custom_channels', [])
     }
     save_keys(keys)
     return jsonify({"success": True})
@@ -563,9 +567,26 @@ def chat():
         return jsonify({"error": "请联系管理员~"}), 403
         
     global_conf = keys.get('__GLOBAL_CONFIG__', {})
-    dynamic_key = global_conf.get(f'{source}_key', '')
+    
+    dynamic_key = ""
+    base_url = ""
+    if source == "gemini":
+        dynamic_key = global_conf.get('gemini_key', '')
+    elif source == "geeknow":
+        dynamic_key = global_conf.get('geeknow_key', '')
+        base_url = global_conf.get('geeknow_url', 'https://www.geeknow.top/v1').rstrip('/')
+    elif source == "grsai":
+        dynamic_key = global_conf.get('grsai_key', '')
+        base_url = global_conf.get('grsai_url', 'https://api.grsai.com/v1').rstrip('/')
+    else:
+        for cc in global_conf.get("custom_channels", []):
+            if cc["id"] == source:
+                dynamic_key = cc.get("api_key", "")
+                base_url = cc.get("base_url", "").rstrip('/')
+                break
+
     if not dynamic_key: 
-        return jsonify({"error": f"系统暂未配置 [{source}] 通道的 API Key，请联系管理员~"}), 400
+        return jsonify({"error": f"系统暂未配置 [{source}] 通道的 API Key，或通道被禁用！"}), 400
         
     def generate():
         try:
@@ -595,11 +616,7 @@ def chat():
                 headers = {"Authorization": f"Bearer {dynamic_key}", "Content-Type": "application/json"}
                 payload = {"model": actual_model_name, "messages": messages, "temperature": 0.7, "stream": True}
                 
-                if source == "geeknow":
-                    base = global_conf.get('geeknow_url', 'https://www.geeknow.top/v1').rstrip('/')
-                else:
-                    base = global_conf.get('grsai_url', 'https://api.grsai.com/v1').rstrip('/')
-                api_url = f"{base}/chat/completions"
+                api_url = f"{base_url}/chat/completions"
                 
                 resp = requests.post(api_url, json=payload, headers=headers, stream=True, timeout=60)
                 if not resp.ok:

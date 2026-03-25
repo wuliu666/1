@@ -75,9 +75,6 @@
                 </div>
                 <div style="display: flex; gap: 8px; align-items: center; flex: 1; justify-content: flex-end;">
                     <select id="apiSourceSelect" class="inline-model-select" onchange="onApiSourceChange()" title="切换 AI 模型的 API 调用通道 (如直连或中转)">
-                        <option value="gemini">🌐 Gemini</option>
-                        <option value="geeknow">🚀 GeekNow</option>
-                        <option value="grsai">⚡ GRSAI</option>
                     </select>
                     <select id="modelSelect" class="inline-model-select" onchange="changeModel()" title="选择具体执行任务的大语言模型"></select>
                     <button class="send-btn desktop-send" onclick="sendMessage()" title="发送您的指令给 AI">↑</button>
@@ -206,7 +203,7 @@
        </div>
 
         <div id="adminTab-api" class="admin-tab-content" style="display: none;">
-            <p style="font-size:0.8rem; color:var(--text-secondary); margin-bottom: 15px;">配置通道接口地址与密钥。关闭通道开关后，前端用户聊天界面将隐藏该通道。</p>
+            <p style="font-size:0.8rem; color:var(--text-secondary); margin-bottom: 15px;">配置通道接口地址与密钥。支持无限扩展兼容 OpenAI 协议的自定义中转源。</p>
             
             <div style="border: 1px solid var(--border-color); border-radius: 10px; padding: 15px; margin-bottom: 12px; background: var(--bg-container);">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
@@ -230,7 +227,7 @@
                 </div>
             </div>
 
-            <div style="border: 1px solid var(--border-color); border-radius: 10px; padding: 15px; background: var(--bg-container);">
+            <div style="border: 1px solid var(--border-color); border-radius: 10px; padding: 15px; margin-bottom: 12px; background: var(--bg-container);">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
                     <h4 style="margin: 0; color: var(--text-main);">⚡ GRSAI 中转</h4>
                     <label style="display: flex; align-items: center; gap: 5px; cursor: pointer; font-size: 0.85rem;"><input type="checkbox" id="grsaiEnable" checked> 启用此通道</label>
@@ -243,7 +240,11 @@
                 </div>
             </div>
 
-            <button class="modal-btn btn-confirm" style="width: 100%; margin-top: 15px;" onclick="saveApiSettings()">💾 永久保存全部配置</button>
+            <div id="customChannelsContainer"></div>
+            
+            <button class="nav-btn" onclick="addCustomChannelUI()" style="width: 100%; border-style: dashed; border-color: var(--text-secondary); margin-bottom: 15px; padding: 12px; background: transparent; color: var(--text-main);">➕ 添加自定义兼容通道 (支持 OneAPI 等聚合源)</button>
+
+            <button class="modal-btn btn-confirm" style="width: 100%; margin-top: 5px;" onclick="saveApiSettings()">💾 永久保存全部配置</button>
         </div>
 
         <div id="adminTab-logs" class="admin-tab-content" style="display: none;"><div style="max-height:400px; overflow-y:auto; border:1px solid var(--border-color); border-radius:10px;"><table style="width:100%; border-collapse: collapse; text-align: left; font-size: 0.85rem;"><thead style="background: var(--bg-hover); position: sticky; top: 0;"><tr><th style="padding: 10px; border-bottom: 1px solid var(--border-color); width: 140px;">时间</th><th style="padding: 10px; border-bottom: 1px solid var(--border-color); width: 100px;">操作人</th><th style="padding: 10px; border-bottom: 1px solid var(--border-color);">动作记录</th></tr></thead><tbody id="auditLogTableBody"></tbody></table></div></div>

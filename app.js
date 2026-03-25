@@ -1,4 +1,4 @@
-// ⚡ 注意：必须把这里的 IP 替换为您真实的腾讯云公网 IP！
+// ⚡ 注意：必须把这里的 IP 替换为您真实的公网 IP！
 const API_BASE_URL = "http://127.0.0.1:5000"; 
 const HUB_ID = 'STORYBOARD_HUB'; 
 const IMAGE_SPLIT_ID = 'IMAGE_SPLIT_TOOL';
@@ -6,29 +6,12 @@ const IMAGE_GEN_ID = 'IMAGE_GEN_TOOL';
 const TEAM_ASSET_ID = 'TEAM_ASSET_LIBRARY';
 const PERSONAL_ASSET_ID = 'PERSONAL_ASSET_LIBRARY';
 
-let currentUserKey = null;
-let currentSessionToken = null; 
-let heartbeatInterval = null;
-let currentUserName = "Creator"; 
-let isAdmin = false; 
-
-let chats = [];
-let currentChatId = null; 
-let renamingChatId = null; 
-let currentTab = 'all';
-let pendingConfirmCallback = null;
-
-let currentUploadedImageBase64 = null; 
-let currentSelectedRatioText = '16:9';
-let currentSelectedResText = '高清 2K';
-
-let teamAssets = [];
-let personalAssets = []; 
-let currentAssetFilter = 'all';
-let currentLibraryMode = 'team'; 
-let editingAssetId = null;
-let isBulkMode = false;
-let selectedAssetIds = new Set();
+let currentUserKey = null; let currentSessionToken = null; let heartbeatInterval = null;
+let currentUserName = "Creator"; let isAdmin = false; 
+let chats = []; let currentChatId = null; let renamingChatId = null; let currentTab = 'all'; let pendingConfirmCallback = null;
+let currentUploadedImageBase64 = null; let currentSelectedRatioText = '16:9'; let currentSelectedResText = '高清 2K';
+let teamAssets = []; let personalAssets = []; let currentAssetFilter = 'all'; let currentLibraryMode = 'team'; 
+let editingAssetId = null; let isBulkMode = false; let selectedAssetIds = new Set();
 
 let auditLogs = JSON.parse(localStorage.getItem('sys_audit_logs')) || [];
 let userUsages = JSON.parse(localStorage.getItem('sys_user_usages')) || {};
@@ -44,78 +27,41 @@ function addAuditLog(action, user = currentUserKey) { const time = new Date().to
 function getUserUsage(key) { if(!userUsages[key]) userUsages[key] = { images: 0, limit: 1000 }; return userUsages[key]; }
 function incrementUsage(key) { let u = getUserUsage(key); u.images += 1; localStorage.setItem('sys_user_usages', JSON.stringify(userUsages)); }
 
-function showToast(msg) {
-    const div = document.createElement('div'); div.className = 'toast-msg'; div.innerText = msg;
-    document.body.appendChild(div); setTimeout(() => { if (div.parentNode) div.remove(); }, 2500);
-}
+function showToast(msg) { const div = document.createElement('div'); div.className = 'toast-msg'; div.innerText = msg; document.body.appendChild(div); setTimeout(() => { if (div.parentNode) div.remove(); }, 2500); }
 
 function copyToClipboard(text) {
     if (!text) return;
-    if (navigator.clipboard && window.isSecureContext) {
-        navigator.clipboard.writeText(text).then(() => {
-            showToast("✅ 已成功复制到剪贴板");
-        }).catch(() => fallbackCopy(text));
-    } else {
-        fallbackCopy(text);
-    }
+    if (navigator.clipboard && window.isSecureContext) { navigator.clipboard.writeText(text).then(() => { showToast("✅ 已成功复制到剪贴板"); }).catch(() => fallbackCopy(text));
+    } else { fallbackCopy(text); }
 }
-
 function fallbackCopy(text) {
-    const textArea = document.createElement("textarea");
-    textArea.value = text;
-    textArea.style.position = "fixed";
-    textArea.style.left = "-9999px";
-    textArea.style.top = "0";
-    document.body.appendChild(textArea);
-    textArea.focus();
-    textArea.select();
-    try {
-        document.execCommand('copy');
-        showToast("✅ 已成功复制到剪贴板");
-    } catch (err) {
-        showToast("❌ 复制失败，请手动选择文字复制");
-    }
-    document.body.removeChild(textArea);
+    const textArea = document.createElement("textarea"); textArea.value = text; textArea.style.position = "fixed"; textArea.style.left = "-9999px"; textArea.style.top = "0"; document.body.appendChild(textArea); textArea.focus(); textArea.select();
+    try { document.execCommand('copy'); showToast("✅ 已成功复制到剪贴板"); } catch (err) { showToast("❌ 复制失败"); } document.body.removeChild(textArea);
 }
 
 async function fetchTeamAssets() { try { const res = await fetch(`${API_BASE_URL}/api/get_assets`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({library_mode: 'team'}) }); teamAssets = res.ok ? await res.json() : []; } catch(e) { teamAssets = []; } }
 async function fetchPersonalAssets() { try { const res = await fetch(`${API_BASE_URL}/api/get_assets`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({library_mode: 'personal', user_key: currentUserKey}) }); personalAssets = res.ok ? await res.json() : []; } catch(e) { personalAssets = []; } }
 
 async function fetchCloudChats(key) {
-    try {
-        const res = await fetch(`${API_BASE_URL}/api/get_chats`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({user_key: key}) });
-        if(res.ok) {
-            const cloudChats = await res.json();
-            if(cloudChats && cloudChats.length > 0) {
-                chats = cloudChats;
-                localStorage.setItem('chats_' + key, JSON.stringify(chats));
-            }
-        }
-    } catch(e) {}
+    try { const res = await fetch(`${API_BASE_URL}/api/get_chats`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({user_key: key}) }); if(res.ok) { const cloudChats = await res.json(); if(cloudChats && cloudChats.length > 0) { chats = cloudChats; localStorage.setItem('chats_' + key, JSON.stringify(chats)); } } } catch(e) {}
 }
 
-async function syncChatsToCloud() {
-    if(!currentUserKey) return;
-    try { await fetch(`${API_BASE_URL}/api/save_chats`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({user_key: currentUserKey, chats: chats}) }); } catch(e) {}
-}
+async function syncChatsToCloud() { if(!currentUserKey) return; try { await fetch(`${API_BASE_URL}/api/save_chats`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({user_key: currentUserKey, chats: chats}) }); } catch(e) {} }
 
 let isSidebarCollapsed = window.innerWidth <= 768; 
 window.addEventListener('DOMContentLoaded', () => { if(isSidebarCollapsed) document.getElementById('appSidebar')?.classList.add('collapsed'); });
 
 function toggleSidebar() { 
-    isSidebarCollapsed = !isSidebarCollapsed; 
-    const sidebar = document.getElementById('appSidebar'); const overlay = document.getElementById('mobileOverlay');
+    isSidebarCollapsed = !isSidebarCollapsed; const sidebar = document.getElementById('appSidebar'); const overlay = document.getElementById('mobileOverlay');
     if(isSidebarCollapsed) { sidebar.classList.add('collapsed'); if(overlay) overlay.classList.remove('show'); } 
     else { sidebar.classList.remove('collapsed'); if(window.innerWidth <= 768 && overlay) overlay.classList.add('show'); } 
 }
 
 function init() {
     loadImageModelsToUI();
-    const lastKey = localStorage.getItem('last_used_key');
-    if (lastKey) document.getElementById('secretKey').value = lastKey;
+    const lastKey = localStorage.getItem('last_used_key'); if (lastKey) document.getElementById('secretKey').value = lastKey;
     const k = localStorage.getItem('user_secret_key');
-    if (k) { document.getElementById('secretKey').value = k; verifyKey(); } 
-    else { document.getElementById('chatList').innerHTML = ''; document.getElementById('chatBox').innerHTML = ''; }
+    if (k) { document.getElementById('secretKey').value = k; verifyKey(); } else { document.getElementById('chatList').innerHTML = ''; document.getElementById('chatBox').innerHTML = ''; }
 }
 
 function toggleKeyVisibility() { const el = document.getElementById('secretKey'); el.type = el.type === 'password' ? 'text' : 'password'; }
@@ -143,30 +89,14 @@ async function checkHeartbeat() {
 function forceLogout(alertMsg) {
     if(heartbeatInterval) { clearInterval(heartbeatInterval); heartbeatInterval = null; }
     currentUserKey = null; currentSessionToken = null;
-    
-    document.getElementById('keySection').style.display = 'flex'; 
-    document.getElementById('headerActions').style.display = 'none';
-    document.getElementById('chatBox').innerHTML = '';
-    document.getElementById('chatList').innerHTML = '';
-    document.getElementById('inputSection').style.display = 'none';
-    document.getElementById('imageGenInputSection').style.display = 'none';
-    document.getElementById('exportPdfBtn').style.display = 'none';
-    
+    document.getElementById('keySection').style.display = 'flex'; document.getElementById('headerActions').style.display = 'none'; document.getElementById('chatBox').innerHTML = ''; document.getElementById('chatList').innerHTML = ''; document.getElementById('inputSection').style.display = 'none'; document.getElementById('imageGenInputSection').style.display = 'none'; document.getElementById('exportPdfBtn').style.display = 'none';
     if(alertMsg) alert(alertMsg);
-    
-    if (window.innerWidth <= 768) {
-        isSidebarCollapsed = true;
-        document.getElementById('appSidebar').classList.add('collapsed');
-        const overlay = document.getElementById('mobileOverlay');
-        if(overlay) overlay.classList.remove('show');
-    }
+    if (window.innerWidth <= 768) { isSidebarCollapsed = true; document.getElementById('appSidebar').classList.add('collapsed'); const overlay = document.getElementById('mobileOverlay'); if(overlay) overlay.classList.remove('show'); }
 }
 
 async function verifyKey() {
     const p = document.getElementById('secretKey').value.trim(); if(!p) return;
-    const btn = document.querySelector('.key-section .btn-confirm');
-    const originalText = btn.innerText; btn.innerText = "验证中..."; btn.disabled = true;
-
+    const btn = document.querySelector('.key-section .btn-confirm'); const originalText = btn.innerText; btn.innerText = "验证中..."; btn.disabled = true;
     currentSessionToken = Math.random().toString(36).substring(2) + Date.now().toString(36);
     const deviceType = window.innerWidth <= 768 ? 'mobile' : 'desktop';
 
@@ -174,16 +104,11 @@ async function verifyKey() {
         const res = await fetch(`${API_BASE_URL}/verify`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({password:p, session_token: currentSessionToken, device_type: deviceType}) });
         const d = await res.json();
         if(res.ok) {
-            localStorage.setItem('user_secret_key', p); localStorage.setItem('last_used_key', p); currentUserKey = p; isAdmin = d.is_admin;
-            currentUserName = d.note || "Creator";
-            
-            if(heartbeatInterval) clearInterval(heartbeatInterval);
-            heartbeatInterval = setInterval(checkHeartbeat, 8000);
+            localStorage.setItem('user_secret_key', p); localStorage.setItem('last_used_key', p); currentUserKey = p; isAdmin = d.is_admin; currentUserName = d.note || "Creator";
+            if(heartbeatInterval) clearInterval(heartbeatInterval); heartbeatInterval = setInterval(checkHeartbeat, 8000);
             
             await fetchCloudChats(p);
-            Promise.all([fetchTeamAssets(), fetchPersonalAssets()]).then(() => {
-                if (currentChatId === TEAM_ASSET_ID || currentChatId === PERSONAL_ASSET_ID) { renderAssetGrid(); }
-            });
+            Promise.all([fetchTeamAssets(), fetchPersonalAssets()]).then(() => { if (currentChatId === TEAM_ASSET_ID || currentChatId === PERSONAL_ASSET_ID) { renderAssetGrid(); } });
             
             chats = JSON.parse(localStorage.getItem('chats_' + currentUserKey)) || [];
             if (!chats.find(c => c.id === IMAGE_GEN_ID)) { chats.push({id: IMAGE_GEN_ID, title: "AI生图记录", messages: [], isImageGen: true}); saveChats(); }
@@ -191,82 +116,85 @@ async function verifyKey() {
             
             const sourceSelect = document.getElementById('apiSourceSelect');
             sourceSelect.innerHTML = '';
-            if (d.active_channels) {
-                if (d.active_channels.gemini) sourceSelect.innerHTML += '<option value="gemini">🌐 Gemini</option>';
-                if (d.active_channels.geeknow) sourceSelect.innerHTML += '<option value="geeknow">🚀 GeekNow</option>';
-                if (d.active_channels.grsai) sourceSelect.innerHTML += '<option value="grsai">⚡ GRSAI</option>';
-            } else {
-                sourceSelect.innerHTML = '<option value="gemini">🌐 Gemini</option><option value="geeknow">🚀 GeekNow</option><option value="grsai">⚡ GRSAI</option>';
-            }
+            if (d.channels_list && d.channels_list.length > 0) {
+                d.channels_list.forEach(ch => { sourceSelect.innerHTML += `<option value="${ch.id}">${ch.name}</option>`; });
+            } else { sourceSelect.innerHTML = '<option value="gemini">🌐 Gemini</option>'; }
 
             let savedSource = localStorage.getItem('api_source_' + currentUserKey);
-            if (!savedSource || !sourceSelect.querySelector(`option[value="${savedSource}"]`)) {
-                savedSource = sourceSelect.options.length > 0 ? sourceSelect.options[0].value : 'gemini';
-            }
+            if (!savedSource || !sourceSelect.querySelector(`option[value="${savedSource}"]`)) { savedSource = sourceSelect.options.length > 0 ? sourceSelect.options[0].value : 'gemini'; }
             sourceSelect.value = savedSource; onApiSourceChange(); 
             
             const savedModel = localStorage.getItem('model_type_' + currentUserKey);
             if (savedModel && dynamicModels[savedSource] && dynamicModels[savedSource].find(m => m.id === savedModel)) { document.getElementById('modelSelect').value = savedModel; }
             
-            document.getElementById('keySection').style.display = 'none'; document.getElementById('headerActions').style.display = 'flex';
-            document.getElementById('adminBtn').style.display = isAdmin ? 'inline-block' : 'none';
-            addAuditLog('登录系统'); switchChat(HUB_ID);
+            document.getElementById('keySection').style.display = 'none'; document.getElementById('headerActions').style.display = 'flex'; document.getElementById('adminBtn').style.display = isAdmin ? 'inline-block' : 'none'; addAuditLog('登录系统'); switchChat(HUB_ID);
         } else { showToast("请联系管理员！"); }
     } catch(e) { showToast("网络连接失败，请确保服务器正常运行！"); } finally { btn.innerText = originalText; btn.disabled = false; }
 }
 
 function logout() { openConfirmModal(() => { addAuditLog('退出登录'); forceLogout("您已安全登出！"); localStorage.removeItem('user_secret_key'); }); }
-
-function openChangeKeyModal() { 
-    document.getElementById('newKeyInput').value = currentUserKey; 
-    document.getElementById('changeKeyModal').classList.add('show'); 
-}
+function openChangeKeyModal() { document.getElementById('newKeyInput').value = currentUserKey; document.getElementById('changeKeyModal').classList.add('show'); }
 function closeChangeKeyModal() { document.getElementById('changeKeyModal').classList.remove('show'); }
 async function confirmChangeKey() {
-    const nk = document.getElementById('newKeyInput').value.trim();
-    if(!nk || nk === currentUserKey) return alert("请输入一个全新的专属密钥！");
-    
-    const btn = document.querySelector('#changeKeyModal .btn-confirm');
-    const originalText = btn.innerText; btn.innerText = "正在搬家中..."; btn.disabled = true;
-    
+    const nk = document.getElementById('newKeyInput').value.trim(); if(!nk || nk === currentUserKey) return alert("请输入一个全新的专属密钥！");
+    const btn = document.querySelector('#changeKeyModal .btn-confirm'); const originalText = btn.innerText; btn.innerText = "正在搬家中..."; btn.disabled = true;
     try {
-        const res = await fetch(`${API_BASE_URL}/api/change_key`, {
-            method: 'POST', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({old_key: currentUserKey, new_key: nk})
-        });
+        const res = await fetch(`${API_BASE_URL}/api/change_key`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({old_key: currentUserKey, new_key: nk}) });
         const d = await res.json();
-        
         if(res.ok && d.success) {
-            const oldChats = localStorage.getItem('chats_' + currentUserKey);
-            if(oldChats) { localStorage.setItem('chats_' + nk, oldChats); localStorage.removeItem('chats_' + currentUserKey); }
-            const oldSource = localStorage.getItem('api_source_' + currentUserKey);
-            if(oldSource) { localStorage.setItem('api_source_' + nk, oldSource); localStorage.removeItem('api_source_' + currentUserKey); }
-            const oldModel = localStorage.getItem('model_type_' + currentUserKey);
-            if(oldModel) { localStorage.setItem('model_type_' + nk, oldModel); localStorage.removeItem('model_type_' + currentUserKey); }
-            
-            localStorage.setItem('user_secret_key', nk);
-            localStorage.setItem('last_used_key', nk);
-            currentUserKey = nk;
-            
-            showToast("✅ 密钥修改成功！数据已全部迁移");
-            closeChangeKeyModal();
-        } else {
-            alert(d.error || "修改失败，可能是因为新密钥已被其他人占用！");
-        }
-    } catch(e) { alert("网络连接错误，请稍后再试！"); }
-    finally { btn.innerText = originalText; btn.disabled = false; }
+            const oldChats = localStorage.getItem('chats_' + currentUserKey); if(oldChats) { localStorage.setItem('chats_' + nk, oldChats); localStorage.removeItem('chats_' + currentUserKey); }
+            const oldSource = localStorage.getItem('api_source_' + currentUserKey); if(oldSource) { localStorage.setItem('api_source_' + nk, oldSource); localStorage.removeItem('api_source_' + currentUserKey); }
+            const oldModel = localStorage.getItem('model_type_' + currentUserKey); if(oldModel) { localStorage.setItem('model_type_' + nk, oldModel); localStorage.removeItem('model_type_' + currentUserKey); }
+            localStorage.setItem('user_secret_key', nk); localStorage.setItem('last_used_key', nk); currentUserKey = nk; showToast("✅ 密钥修改成功！数据已全部迁移"); closeChangeKeyModal();
+        } else { alert(d.error || "修改失败，可能是因为新密钥已被其他人占用！"); }
+    } catch(e) { alert("网络连接错误，请稍后再试！"); } finally { btn.innerText = originalText; btn.disabled = false; }
 }
 
-window.copyAdminKey = function(text, btn) { 
-    copyToClipboard(text);
-    const original = btn.innerHTML; 
-    btn.innerHTML = '✅ 已复制'; btn.style.color = '#ffffff'; btn.style.backgroundColor = '#34c759'; btn.style.borderColor = '#34c759';
-    setTimeout(() => { btn.innerHTML = original; btn.style.color = ''; btn.style.backgroundColor = ''; btn.style.borderColor = ''; }, 2000); 
-};
-
+window.copyAdminKey = function(text, btn) { copyToClipboard(text); const original = btn.innerHTML; btn.innerHTML = '✅ 已复制'; btn.style.color = '#ffffff'; btn.style.backgroundColor = '#34c759'; btn.style.borderColor = '#34c759'; setTimeout(() => { btn.innerHTML = original; btn.style.color = ''; btn.style.backgroundColor = ''; btn.style.borderColor = ''; }, 2000); };
 function openConfirmModal(callback) { pendingConfirmCallback = callback; document.getElementById('confirmModal').classList.add('show'); }
 function closeConfirmModal() { document.getElementById('confirmModal').classList.remove('show'); pendingConfirmCallback = null; }
 function executeConfirm() { if(pendingConfirmCallback) pendingConfirmCallback(); closeConfirmModal(); }
+
+// =============== 扩展通道 UI 生成 ===============
+function addCustomChannelUI(data = null) {
+    const container = document.getElementById('customChannelsContainer');
+    const id = data ? data.id : 'custom_' + Date.now();
+    const name = data ? data.name : '未命名新通道';
+    const url = data ? data.base_url : '';
+    const key = data ? data.api_key : '';
+    const enabled = data ? (data.enabled !== false) : true;
+
+    const html = `
+        <div class="custom-channel-block" data-id="${id}" style="border: 1px solid var(--border-color); border-radius: 10px; padding: 15px; margin-bottom: 12px; background: var(--bg-container); position: relative;">
+            <button onclick="this.parentElement.remove()" style="position: absolute; top: 12px; right: 12px; background: none; border: none; color: var(--danger-color); cursor: pointer; font-size: 1.2rem;" title="删除此通道">🗑️</button>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; padding-right: 35px;">
+                <h4 style="margin: 0; display:flex; align-items:center; color: var(--text-main);">🔌 <input type="text" class="cc-name" value="${name}" placeholder="通道名称" style="border:none; border-bottom:1px dashed var(--text-secondary); background:transparent; color:var(--text-main); font-weight:bold; font-size:1rem; outline:none; margin-left: 5px; width: 140px;"></h4>
+                <label style="display: flex; align-items: center; gap: 5px; cursor: pointer; font-size: 0.85rem;"><input type="checkbox" class="cc-enable" ${enabled ? 'checked' : ''}> 启用</label>
+            </div>
+            <div class="setting-row"><label>🔗 Base URL</label><input type="text" class="cc-url" value="${url}" placeholder="https://api.xxx.com/v1"></div>
+            <div class="setting-row"><label>🔑 API Key</label><input type="password" class="cc-key" value="${key}" placeholder="sk-..."></div>
+            <div style="display: flex; gap: 10px; margin-top: 5px;">
+                <button class="nav-btn" onclick="testCustomConnection('${id}', this)" style="flex: 1;">⚡ 连通性测试</button>
+                <button class="nav-btn" onclick="checkCustomBalance('${id}', this)" style="flex: 1; border-color: #ff9500; color: #ff9500;">💰 查询余额</button>
+            </div>
+        </div>
+    `;
+    container.insertAdjacentHTML('beforeend', html);
+}
+
+function updateAdminModelFilterUI(custom_channels = []) {
+    const filter = document.getElementById('adminApiFilter');
+    if(!filter) return;
+    const currentVal = filter.value;
+    filter.innerHTML = `<option value="gemini">Gemini官方</option><option value="geeknow">GeekNow中转</option><option value="grsai">GRSAI中转</option>`;
+    custom_channels.forEach(cc => {
+        filter.innerHTML += `<option value="${cc.id}">${cc.name}</option>`;
+        if (!dynamicModels[cc.id]) dynamicModels[cc.id] = [];
+    });
+    localStorage.setItem('sys_dynamic_models', JSON.stringify(dynamicModels));
+    filter.value = Array.from(filter.options).some(o => o.value === currentVal) ? currentVal : 'gemini';
+    renderAdminModels();
+}
 
 async function loadApiSettings() { 
     try { 
@@ -281,147 +209,82 @@ async function loadApiSettings() {
             document.getElementById('grsaiEnable').checked = d.grsai_enabled !== false;
             document.getElementById('grsaiKey').value = d.grsai_key || ''; 
             document.getElementById('grsaiUrl').value = d.grsai_url || 'https://api.grsai.com/v1'; 
+
+            document.getElementById('customChannelsContainer').innerHTML = '';
+            if(d.custom_channels) d.custom_channels.forEach(cc => addCustomChannelUI(cc));
+            updateAdminModelFilterUI(d.custom_channels || []);
         } 
     } catch(e) {} 
 }
 
 async function saveApiSettings() { 
+    const customBlocks = document.querySelectorAll('.custom-channel-block'); const custom_channels = [];
+    customBlocks.forEach(block => {
+        custom_channels.push({ id: block.getAttribute('data-id'), name: block.querySelector('.cc-name').value.trim() || '未命名通道', base_url: block.querySelector('.cc-url').value.trim(), api_key: block.querySelector('.cc-key').value.trim(), enabled: block.querySelector('.cc-enable').checked });
+    });
+
     const payload = { 
         admin_key: currentUserKey, 
-        gemini_enabled: document.getElementById('geminiEnable').checked,
-        gemini_key: document.getElementById('geminiKey').value.trim(), 
-        geeknow_enabled: document.getElementById('geeknowEnable').checked,
-        geeknow_url: document.getElementById('geeknowUrl').value.trim() || 'https://www.geeknow.top/v1',
-        geeknow_key: document.getElementById('geeknowKey').value.trim(), 
-        grsai_enabled: document.getElementById('grsaiEnable').checked,
-        grsai_url: document.getElementById('grsaiUrl').value.trim() || 'https://api.grsai.com/v1',
-        grsai_key: document.getElementById('grsaiKey').value.trim() 
+        gemini_enabled: document.getElementById('geminiEnable').checked, gemini_key: document.getElementById('geminiKey').value.trim(), 
+        geeknow_enabled: document.getElementById('geeknowEnable').checked, geeknow_url: document.getElementById('geeknowUrl').value.trim() || 'https://www.geeknow.top/v1', geeknow_key: document.getElementById('geeknowKey').value.trim(), 
+        grsai_enabled: document.getElementById('grsaiEnable').checked, grsai_url: document.getElementById('grsaiUrl').value.trim() || 'https://api.grsai.com/v1', grsai_key: document.getElementById('grsaiKey').value.trim(),
+        custom_channels: custom_channels
     }; 
     try { 
         await fetch(`${API_BASE_URL}/admin/save_config`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) }); 
-        showToast("✅ 通道地址与开关状态已永久保存！刷新生效"); 
-        addAuditLog('更新了通道的基础配置、开关状态与密钥'); 
+        showToast("✅ 通道与扩展配置已永久保存！"); addAuditLog('修改了全站底层通道配置'); updateAdminModelFilterUI(custom_channels);
     } catch(e) { alert("保存失败"); } 
 }
 
-async function checkBalance(channel) {
-    const btn = document.getElementById(`btnBal-${channel}`);
-    const originalText = btn.innerHTML;
-    btn.innerHTML = "⏳ 查询中...";
-    btn.disabled = true;
-
-    let key = document.getElementById(`${channel}Key`).value.trim();
-    let url = document.getElementById(`${channel}Url`).value.trim();
-
-    if (!key) { alert("⚠️ 请先在上方填写该通道的 API Key！"); btn.innerHTML = originalText; btn.disabled = false; return; }
-
-    try {
-        const res = await fetch(`${API_BASE_URL}/admin/check_balance`, {
-            method: 'POST', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ admin_key: currentUserKey, api_key: key, base_url: url })
-        });
-        const d = await res.json();
-        if (d.success) {
-            btn.innerHTML = typeof d.balance === 'number' ? `💲 余额: $${d.balance.toFixed(4)}` : `✅ ${d.balance}`;
-            btn.style.backgroundColor = "var(--bg-hover)";
-            btn.style.borderColor = "var(--border-color)";
-            btn.style.color = "var(--text-main)";
-        } else {
-            btn.innerHTML = "❌ 查询失败";
-            alert("余额查询失败：\n" + (d.msg || "未知错误"));
-        }
-    } catch (e) {
-        btn.innerHTML = "❌ 网络超时";
-    }
-    setTimeout(() => { btn.innerHTML = originalText; btn.style.backgroundColor = ""; btn.style.borderColor = "#ff9500"; btn.style.color = "#ff9500"; btn.disabled = false; }, 4000);
-}
-
-async function checkBalance(channel) {
-    const btn = document.getElementById(`btnBal-${channel}`);
-    const originalText = btn.innerHTML;
-    btn.innerHTML = "⏳ 查询中...";
-    btn.disabled = true;
-
-    let key = document.getElementById(`${channel}Key`).value.trim();
-    let url = document.getElementById(`${channel}Url`).value.trim();
-
-    if (!key) { alert("⚠️ 请先在上方填写该通道的 API Key！"); btn.innerHTML = originalText; btn.disabled = false; return; }
-
-    try {
-        const res = await fetch(`${API_BASE_URL}/admin/check_balance`, {
-            method: 'POST', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ admin_key: currentUserKey, api_key: key, base_url: url })
-        });
-        const d = await res.json();
-        if (d.success) {
-            btn.innerHTML = typeof d.balance === 'number' ? `💲 余额: $${d.balance.toFixed(4)}` : `✅ ${d.balance}`;
-            btn.style.backgroundColor = "var(--bg-hover)";
-            btn.style.borderColor = "var(--border-color)";
-            btn.style.color = "var(--text-main)";
-        } else {
-            btn.innerHTML = "❌ 查询失败";
-            alert("余额查询失败：\n" + (d.msg || "未知错误"));
-        }
-    } catch (e) {
-        btn.innerHTML = "❌ 网络超时";
-    }
-    setTimeout(() => { btn.innerHTML = originalText; btn.style.backgroundColor = ""; btn.style.borderColor = "#ff9500"; btn.style.color = "#ff9500"; btn.disabled = false; }, 4000);
-}
-
 async function testApiConnection(channel) {
-    const btn = document.getElementById(`btnTest-${channel}`);
-    const originalText = btn.innerHTML;
-    btn.innerHTML = "⏳ 正在发送探测包...";
-    btn.disabled = true;
-
-    let key = document.getElementById(`${channel}Key`).value.trim();
-    let url = channel === 'gemini' ? '' : document.getElementById(`${channel}Url`).value.trim();
-
-    if (!key) { alert("⚠️ 请先在上方输入框填写该通道的 API Key！"); btn.innerHTML = originalText; btn.disabled = false; return; }
-
+    const btn = document.getElementById(`btnTest-${channel}`); const originalText = btn.innerHTML; btn.innerHTML = "⏳ 测试中..."; btn.disabled = true;
+    let key = document.getElementById(`${channel}Key`).value.trim(); let url = channel === 'gemini' ? '' : document.getElementById(`${channel}Url`).value.trim();
+    if (!key) { alert("⚠️ 请先填写 API Key！"); btn.innerHTML = originalText; btn.disabled = false; return; }
     try {
-        const res = await fetch(`${API_BASE_URL}/admin/test_api`, {
-            method: 'POST', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ admin_key: currentUserKey, channel: channel, api_key: key, base_url: url })
-        });
+        const res = await fetch(`${API_BASE_URL}/admin/test_api`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ admin_key: currentUserKey, channel: channel, api_key: key, base_url: url }) });
         const d = await res.json();
-        if (d.success) {
-            btn.innerHTML = "✅ 通道连通正常，测试通过！";
-            btn.style.backgroundColor = "#34c759"; btn.style.color = "white"; btn.style.borderColor = "#34c759";
-        } else {
-            btn.innerHTML = "❌ 测试失败，请检查";
-            btn.style.backgroundColor = "#ff3b30"; btn.style.color = "white"; btn.style.borderColor = "#ff3b30";
-            alert("连通性错误信息返回：\n\n" + (d.msg || "未知错误"));
-        }
-    } catch (e) {
-        btn.innerHTML = "❌ 请求超时或网络不通";
-        btn.style.backgroundColor = "#ff3b30"; btn.style.color = "white"; btn.style.borderColor = "#ff3b30";
-    }
+        if (d.success) { btn.innerHTML = "✅ 连通正常！"; btn.style.cssText = "width:100%; margin-top:5px; background:#34c759; color:white; border-color:#34c759;"; } else { btn.innerHTML = "❌ 测试失败"; alert(d.msg); }
+    } catch (e) { btn.innerHTML = "❌ 网络异常"; } setTimeout(() => { btn.innerHTML = originalText; btn.style.cssText = "width:100%; margin-top:5px;"; btn.disabled = false; }, 3500);
+}
 
-    setTimeout(() => { btn.innerHTML = originalText; btn.style.backgroundColor = ""; btn.style.color = ""; btn.style.borderColor = ""; btn.disabled = false; }, 3500);
+async function checkBalance(channel) {
+    const btn = document.getElementById(`btnBal-${channel}`); const originalText = btn.innerHTML; btn.innerHTML = "⏳ 查询中..."; btn.disabled = true;
+    let key = document.getElementById(`${channel}Key`).value.trim(); let url = document.getElementById(`${channel}Url`).value.trim();
+    if (!key) { alert("⚠️ 请先填写 API Key！"); btn.innerHTML = originalText; btn.disabled = false; return; }
+    try {
+        const res = await fetch(`${API_BASE_URL}/admin/check_balance`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ admin_key: currentUserKey, api_key: key, base_url: url }) });
+        const d = await res.json();
+        if (d.success) { btn.innerHTML = typeof d.balance === 'number' ? `💲 余额: $${d.balance.toFixed(4)}` : `✅ ${d.balance}`; btn.style.cssText = "flex:1; background:var(--bg-hover); color:var(--text-main); border-color:var(--border-color);"; } else { btn.innerHTML = "❌ 查询失败"; alert(d.msg); }
+    } catch (e) { btn.innerHTML = "❌ 网络异常"; } setTimeout(() => { btn.innerHTML = originalText; btn.style.cssText = "flex:1; border-color:#ff9500; color:#ff9500;"; btn.disabled = false; }, 4000);
+}
+
+async function testCustomConnection(id, btn) {
+    const block = btn.parentElement.parentElement; const url = block.querySelector('.cc-url').value.trim(); const key = block.querySelector('.cc-key').value.trim();
+    const originalText = btn.innerHTML; if (!key || !url) { alert("⚠️ 必须填写 Base URL 和 API Key！"); return; } btn.innerHTML = "⏳ 测试中..."; btn.disabled = true;
+    try {
+        const res = await fetch(`${API_BASE_URL}/admin/test_api`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ admin_key: currentUserKey, channel: 'custom', api_key: key, base_url: url }) });
+        const d = await res.json();
+        if (d.success) { btn.innerHTML = "✅ 连通正常！"; btn.style.cssText = "flex:1; background:#34c759; color:white; border-color:#34c759;"; } else { btn.innerHTML = "❌ 测试失败"; alert(d.msg); }
+    } catch (e) { btn.innerHTML = "❌ 网络异常"; } setTimeout(() => { btn.innerHTML = originalText; btn.style.cssText = "flex:1;"; btn.disabled = false; }, 3500);
+}
+
+async function checkCustomBalance(id, btn) {
+    const block = btn.parentElement.parentElement; const url = block.querySelector('.cc-url').value.trim(); const key = block.querySelector('.cc-key').value.trim();
+    const originalText = btn.innerHTML; if (!key || !url) { alert("⚠️ 必须填写 Base URL 和 API Key！"); return; } btn.innerHTML = "⏳ 查询中..."; btn.disabled = true;
+    try {
+        const res = await fetch(`${API_BASE_URL}/admin/check_balance`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ admin_key: currentUserKey, api_key: key, base_url: url }) });
+        const d = await res.json();
+        if (d.success) { btn.innerHTML = typeof d.balance === 'number' ? `💲 余额: $${d.balance.toFixed(4)}` : `✅ ${d.balance}`; btn.style.cssText = "flex:1; background:var(--bg-hover); color:var(--text-main); border-color:var(--border-color);"; } else { btn.innerHTML = "❌ 查询失败"; alert(d.msg); }
+    } catch (e) { btn.innerHTML = "❌ 网络异常"; } setTimeout(() => { btn.innerHTML = originalText; btn.style.cssText = "flex:1; border-color:#ff9500; color:#ff9500;"; btn.disabled = false; }, 4000);
 }
 
 let targetQuotaKey = null;
 function switchAdminTab(tabName) { 
-    // 1. 移除所有按钮的高亮
     document.querySelectorAll('.admin-tab-btn').forEach(b => b.classList.remove('active')); 
-    // 2. 隐藏所有面板（彻底覆盖掉写死的 bug）
-    document.querySelectorAll('.admin-tab-content').forEach(c => {
-        c.classList.remove('active');
-        c.style.display = 'none'; 
-    }); 
-    
-    // 3. 激活当前点击的按钮和面板，并强制显形！
+    document.querySelectorAll('.admin-tab-content').forEach(c => { c.classList.remove('active'); c.style.display = 'none'; }); 
     document.getElementById(`tabBtn-${tabName}`).classList.add('active'); 
-    let targetTab = document.getElementById(`adminTab-${tabName}`);
-    targetTab.classList.add('active');
-    targetTab.style.display = 'block'; 
-
-    // 4. 加载对应数据
-    if(tabName === 'keys') refreshKeyList(); 
-    if(tabName === 'models') renderAdminModels(); 
-    if(tabName === 'logs') renderAuditLogs(); 
-    if(tabName === 'api') loadApiSettings(); 
+    let targetTab = document.getElementById(`adminTab-${tabName}`); targetTab.classList.add('active'); targetTab.style.display = 'block'; 
+    if(tabName === 'keys') refreshKeyList(); if(tabName === 'models') renderAdminModels(); if(tabName === 'logs') renderAuditLogs(); if(tabName === 'api') loadApiSettings(); 
 }
 
 async function openAdminPanel() { document.getElementById('adminModal').classList.add('show'); switchAdminTab('keys'); }
@@ -441,15 +304,15 @@ async function refreshKeyList() {
                     <td style="padding: 12px 10px; border-bottom: 1px solid var(--border-color);">
                         <div style="display: flex; align-items: center; gap: 12px;">
                             <span style="font-family: monospace; font-size: 0.95rem;">${k}</span>
-                            <button class="admin-copy-btn" onclick="copyAdminKey('${k}', this)" title="点击复制该成员的密钥">📋 复制</button>
+                            <button class="admin-copy-btn" onclick="copyAdminKey('${k}', this)">📋 复制</button>
                         </div>
                     </td>
                     <td style="padding: 12px 10px; border-bottom: 1px solid var(--border-color);">${info.note}</td>
                     <td style="padding: 12px 10px; border-bottom: 1px solid var(--border-color); color: ${u.images >= u.limit ? 'var(--danger-color)' : 'inherit'}">${u.images} / ${u.limit} 张</td>
                     <td style="padding: 12px 10px; border-bottom: 1px solid var(--border-color); display: flex; gap: 6px; align-items: center;">
-                        <button class="modal-btn" style="padding:4px 8px; font-size:12px; background:var(--bg-input); color:var(--text-main); border:1px solid var(--border-color);" onclick="openQuotaModal('${k}', ${u.limit})" title="修改该成员的生图张数上限">额度</button>
-                        <button class="modal-btn" style="padding:4px 8px; font-size:12px; background:${info.is_deleted?'#34c759':'#ff9500'}; color:white;" onclick="toggleKeyStatus('${k}')" title="${info.is_deleted?'恢复该账号的登录权限':'暂停该账号的登录权限'}">${info.is_deleted?'恢复':'停用'}</button>
-                        <button class="modal-btn" style="padding:4px 8px; font-size:12px; background:var(--danger-color); color:white;" onclick="hardDeleteKey('${k}')" title="永久物理删除该密钥数据">彻底删除</button>
+                        <button class="modal-btn" style="padding:4px 8px; font-size:12px; background:var(--bg-input); color:var(--text-main); border:1px solid var(--border-color);" onclick="openQuotaModal('${k}', ${u.limit})">额度</button>
+                        <button class="modal-btn" style="padding:4px 8px; font-size:12px; background:${info.is_deleted?'#34c759':'#ff9500'}; color:white;" onclick="toggleKeyStatus('${k}')">${info.is_deleted?'恢复':'停用'}</button>
+                        <button class="modal-btn" style="padding:4px 8px; font-size:12px; background:var(--danger-color); color:white;" onclick="hardDeleteKey('${k}')">彻底删除</button>
                     </td>`; 
                 tb.appendChild(tr); 
             } 
@@ -475,8 +338,8 @@ function renderAssetLibraryTool(mode) {
     const canUpload = isPersonal || isAdmin;
 
     let html = `<div class="hub-wrapper"><div style="max-width: 1000px; margin: 0 auto; width: 100%; padding: 30px; box-sizing: border-box; animation: pop 0.3s ease;"><div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 1px solid var(--border-color); padding-bottom: 16px;"><div><h2 style="margin: 0 0 6px 0;">${titleText}</h2><div style="font-size: 0.85rem; color: var(--text-secondary);">${descText}</div></div><div style="display:flex; gap:10px;">`;
-    if(!isBulkMode) { html += `<button onclick="toggleBulkMode()" style="background: var(--bg-input); color: var(--text-main); border: 1px solid var(--border-color); padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 600;" title="开启多选模式进行批量操作">☑️ 批量操作</button>`; }
-    if (canUpload && !isBulkMode) { html += `<button id="uploadNewAssetBtn" onclick="document.getElementById('batchAssetUpload').click()" style="background: var(--bg-user-msg); color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 600;" title="从本地选择文件上传至图库">＋ 添加新素材</button>`; }
+    if(!isBulkMode) { html += `<button onclick="toggleBulkMode()" style="background: var(--bg-input); color: var(--text-main); border: 1px solid var(--border-color); padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 600;">☑️ 批量操作</button>`; }
+    if (canUpload && !isBulkMode) { html += `<button id="uploadNewAssetBtn" onclick="document.getElementById('batchAssetUpload').click()" style="background: var(--bg-user-msg); color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 600;">＋ 添加新素材</button>`; }
     html += `</div></div><div style="display: flex; gap: 10px; margin-bottom: 24px;"><button class="nav-btn ${currentAssetFilter === 'all' ? 'active' : ''}" style="padding: 8px 16px;" onclick="filterAssets('all')">全部展示</button><button class="nav-btn ${currentAssetFilter === 'character' ? 'active' : ''}" style="padding: 8px 16px;" onclick="filterAssets('character')">👤 角色设定</button><button class="nav-btn ${currentAssetFilter === 'scene' ? 'active' : ''}" style="padding: 8px 16px;" onclick="filterAssets('scene')">🏞️ 场景概念</button></div><div id="assetGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 20px;"></div></div></div>`;
     const toolbar = document.getElementById('bulkToolbar');
     if (isBulkMode) { toolbar.style.display = 'flex'; document.getElementById('bulkSelectCount').innerText = `已选择 ${selectedAssetIds.size} 项`; const canManage = isPersonal || isAdmin; document.getElementById('bulkCategoryBtn').style.display = canManage ? 'inline-block' : 'none'; document.getElementById('bulkDeleteBtn').style.display = canManage ? 'inline-block' : 'none'; } else { toolbar.style.display = 'none'; }
@@ -500,8 +363,7 @@ async function generateThumbnail(file) {
 
 async function handleBatchAssetUpload(input) {
     if (!input.files || input.files.length === 0) return;
-    const files = Array.from(input.files); let upCount = 0;
-    showToast(`正在上传 ${files.length} 张图片到云服务器，请稍候...`);
+    const files = Array.from(input.files); let upCount = 0; showToast(`正在上传 ${files.length} 张图片到云服务器，请稍候...`);
     const uploadBtn = document.getElementById('uploadNewAssetBtn'); if(uploadBtn) uploadBtn.disabled = true;
 
     for (let file of files) { 
@@ -552,8 +414,8 @@ function renderAssetGrid() {
     filtered.forEach(asset => {
         const isSelected = selectedAssetIds.has(asset.id); let cardHtml = `<div class="asset-card ${isSelected ? 'selected' : ''}">`;
         if (isBulkMode) { cardHtml += `<div class="bulk-overlay" onclick="toggleSelectAsset('${asset.id}')"></div><div class="checkbox-icon">✓</div>`; }
-        cardHtml += `<div class="canvas-container" title="点击查看安全无码大图" style="width: 100%; height: 240px; background: var(--bg-container); cursor: pointer; display: flex; justify-content: center; align-items: center;" onclick="openFullImage('${asset.id}')" oncontextmenu="return false;" ondragstart="return false;"><canvas id="canvas_${asset.id}" style="width: 100%; height: 100%; object-fit: contain; pointer-events: none;"></canvas></div><div style="padding: 16px;"><div style="font-weight: bold; margin-bottom: 6px; font-size: 1.05rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${asset.title}">${asset.title}</div><div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 12px; display: inline-block; background: var(--bg-container); padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border-color);">${asset.type === 'character' ? '👤 角色设定' : '🏞️ 场景概念'}</div><div style="display: flex; gap: 8px;"><button class="nav-btn" style="flex: 1; padding: 8px; font-size: 0.85rem;" onclick="copyToClipboard('${asset.prompt}')" title="一键复制该素材的提示词描述">📋 词+Seed</button><button class="nav-btn" style="flex: 1; padding: 8px; font-size: 0.85rem; border-color: var(--shen-color); color: var(--shen-color);" onclick="useAssetInGen('${asset.id}')" title="携带此参考图跳转至生图控制台">🎨 去创作</button></div>`;
-        if (canManage && !isBulkMode) { cardHtml += `<div style="display: flex; gap: 8px; margin-top: 8px;"><button class="nav-btn" style="flex: 1; padding: 6px; font-size: 0.85rem;" onclick="editAsset('${asset.id}')" title="修改标题、分类与关联提示词">✏️ 编辑</button><button class="nav-btn" style="flex: 1; padding: 6px; font-size: 0.85rem; border: none; color: var(--danger-color); background: transparent; opacity: 0.7;" onclick="deleteAsset('${asset.id}')" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.7'" title="永久物理删除该素材文件">🗑️ 删除</button></div>`; }
+        cardHtml += `<div class="canvas-container" title="点击查看安全无码大图" style="width: 100%; height: 240px; background: var(--bg-container); cursor: pointer; display: flex; justify-content: center; align-items: center;" onclick="openFullImage('${asset.id}')" oncontextmenu="return false;" ondragstart="return false;"><canvas id="canvas_${asset.id}" style="width: 100%; height: 100%; object-fit: contain; pointer-events: none;"></canvas></div><div style="padding: 16px;"><div style="font-weight: bold; margin-bottom: 6px; font-size: 1.05rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${asset.title}">${asset.title}</div><div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 12px; display: inline-block; background: var(--bg-container); padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border-color);">${asset.type === 'character' ? '👤 角色设定' : '🏞️ 场景概念'}</div><div style="display: flex; gap: 8px;"><button class="nav-btn" style="flex: 1; padding: 8px; font-size: 0.85rem;" onclick="copyToClipboard('${asset.prompt}')">📋 词+Seed</button><button class="nav-btn" style="flex: 1; padding: 8px; font-size: 0.85rem; border-color: var(--shen-color); color: var(--shen-color);" onclick="useAssetInGen('${asset.id}')">🎨 去创作</button></div>`;
+        if (canManage && !isBulkMode) { cardHtml += `<div style="display: flex; gap: 8px; margin-top: 8px;"><button class="nav-btn" style="flex: 1; padding: 6px; font-size: 0.85rem;" onclick="editAsset('${asset.id}')">✏️ 编辑</button><button class="nav-btn" style="flex: 1; padding: 6px; font-size: 0.85rem; border: none; color: var(--danger-color); background: transparent; opacity: 0.7;" onclick="deleteAsset('${asset.id}')" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.7'">🗑️ 删除</button></div>`; }
         cardHtml += `</div></div>`; grid.innerHTML += cardHtml;
     });
 
@@ -624,7 +486,7 @@ function extractAndGenerateImage(promptText, referenceImage = null) {
     document.getElementById('imgGenInput').value = promptText.replace(/[【】🎬]/g, '').trim(); 
 }
 
-function renderImageSplitterTool() { return `<div class="hub-wrapper"><div style="max-width:650px;margin:0 auto;width:100%;padding:30px;background:var(--bg-container);border-radius:12px;border:1px solid var(--border-color);color:var(--text-main);box-sizing:border-box;"><h2 style="text-align:center;margin-top:0;margin-bottom:24px;">🧩 批量图片拆分工具</h2><div style="background:var(--bg-input);border:1px solid var(--border-color);padding:18px;margin-bottom:20px;border-radius:10px;"><div style="font-weight:600;margin-bottom:12px;color:var(--shen-color);">1. 拆分设置</div><div style="display:flex;gap:20px;"><label style="display:flex;align-items:center;gap:8px;">行数: <input type="number" id="splitRows" value="2" min="1" style="width:70px;padding:6px;border-radius:6px;border:1px solid var(--border-color);background:var(--bg-container);color:var(--text-main);outline:none;"></label><label style="display:flex;align-items:center;gap:8px;">列数: <input type="number" id="splitCols" value="2" min="1" style="width:70px;padding:6px;border-radius:6px;border:1px solid var(--border-color);background:var(--bg-container);color:var(--text-main);outline:none;"></label></div></div><div style="background:var(--bg-input);border:1px solid var(--border-color);padding:18px;margin-bottom:20px;border-radius:10px;"><div style="font-weight:600;margin-bottom:12px;"><label style="cursor:pointer;display:flex;align-items:center;gap:8px;" title="使用色块在拆分前盖住原图的某个区域"><input type="checkbox" id="enableWm" onchange="document.getElementById('wmSettings').style.display=this.checked?'block':'none'"> 2. 开启去水印 (色块覆盖法)</label></div><div id="wmSettings" style="display:none;padding-top:10px;border-top:1px dashed var(--border-color);"><div style="display:flex;gap:15px;margin-bottom:12px;flex-wrap:wrap;"><label style="display:flex;align-items:center;gap:5px;">X: <input type="number" id="wmX" value="0" style="width:60px;padding:6px;border-radius:6px;border:1px solid var(--border-color);background:var(--bg-container);color:var(--text-main);"></label><label style="display:flex;align-items:center;gap:5px;">Y: <input type="number" id="wmY" value="0" style="width:60px;padding:6px;border-radius:6px;border:1px solid var(--border-color);background:var(--bg-container);color:var(--text-main);"></label><label style="display:flex;align-items:center;gap:5px;">W: <input type="number" id="wmW" value="150" style="width:60px;padding:6px;border-radius:6px;border:1px solid var(--border-color);background:var(--bg-container);color:var(--text-main);"></label><label style="display:flex;align-items:center;gap:5px;">H: <input type="number" id="wmH" value="50" style="width:60px;padding:6px;border-radius:6px;border:1px solid var(--border-color);background:var(--bg-container);color:var(--text-main);"></label></div><label style="display:flex;align-items:center;gap:8px;">颜色: <input type="color" id="wmColor" value="#ffffff" style="border:none;border-radius:4px;cursor:pointer;background:transparent;padding:0;height:28px;width:40px;"></label></div></div><div style="background:var(--bg-input);border:1px solid var(--border-color);padding:18px;margin-bottom:24px;border-radius:10px;"><div style="font-weight:600;margin-bottom:12px;color:var(--shen-color);">3. 批量上传</div><input type="file" id="splitUpload" accept="image/jpeg, image/png, image/webp" multiple style="width:100%;color:var(--text-main);padding:10px;border:1px dashed var(--border-color);border-radius:8px;background:var(--bg-container);cursor:pointer;"></div><button id="processSplitBtn" onclick="runImageSplitter()" style="background-color:var(--bg-user-msg);color:white;border:none;padding:14px 20px;font-size:1rem;border-radius:8px;cursor:pointer;width:100%;font-weight:600;transition:0.2s;" title="开始进行全自动图片拆封并打包下载">🚀 开始处理并打包下载 (ZIP)</button><div id="splitStatus" style="margin-top:18px;font-size:0.95rem;color:var(--highlight-color);font-weight:600;text-align:center;"></div></div></div>`; }
+function renderImageSplitterTool() { return `<div class="hub-wrapper"><div style="max-width:650px;margin:0 auto;width:100%;padding:30px;background:var(--bg-container);border-radius:12px;border:1px solid var(--border-color);color:var(--text-main);box-sizing:border-box;"><h2 style="text-align:center;margin-top:0;margin-bottom:24px;">🧩 批量图片拆分工具</h2><div style="background:var(--bg-input);border:1px solid var(--border-color);padding:18px;margin-bottom:20px;border-radius:10px;"><div style="font-weight:600;margin-bottom:12px;color:var(--shen-color);">1. 拆分设置</div><div style="display:flex;gap:20px;"><label style="display:flex;align-items:center;gap:8px;">行数: <input type="number" id="splitRows" value="2" min="1" style="width:70px;padding:6px;border-radius:6px;border:1px solid var(--border-color);background:var(--bg-container);color:var(--text-main);outline:none;"></label><label style="display:flex;align-items:center;gap:8px;">列数: <input type="number" id="splitCols" value="2" min="1" style="width:70px;padding:6px;border-radius:6px;border:1px solid var(--border-color);background:var(--bg-container);color:var(--text-main);outline:none;"></label></div></div><div style="background:var(--bg-input);border:1px solid var(--border-color);padding:18px;margin-bottom:20px;border-radius:10px;"><div style="font-weight:600;margin-bottom:12px;"><label style="cursor:pointer;display:flex;align-items:center;gap:8px;"><input type="checkbox" id="enableWm" onchange="document.getElementById('wmSettings').style.display=this.checked?'block':'none'"> 2. 开启去水印 (色块覆盖法)</label></div><div id="wmSettings" style="display:none;padding-top:10px;border-top:1px dashed var(--border-color);"><div style="display:flex;gap:15px;margin-bottom:12px;flex-wrap:wrap;"><label style="display:flex;align-items:center;gap:5px;">X: <input type="number" id="wmX" value="0" style="width:60px;padding:6px;border-radius:6px;border:1px solid var(--border-color);background:var(--bg-container);color:var(--text-main);"></label><label style="display:flex;align-items:center;gap:5px;">Y: <input type="number" id="wmY" value="0" style="width:60px;padding:6px;border-radius:6px;border:1px solid var(--border-color);background:var(--bg-container);color:var(--text-main);"></label><label style="display:flex;align-items:center;gap:5px;">W: <input type="number" id="wmW" value="150" style="width:60px;padding:6px;border-radius:6px;border:1px solid var(--border-color);background:var(--bg-container);color:var(--text-main);"></label><label style="display:flex;align-items:center;gap:5px;">H: <input type="number" id="wmH" value="50" style="width:60px;padding:6px;border-radius:6px;border:1px solid var(--border-color);background:var(--bg-container);color:var(--text-main);"></label></div><label style="display:flex;align-items:center;gap:8px;">颜色: <input type="color" id="wmColor" value="#ffffff" style="border:none;border-radius:4px;cursor:pointer;background:transparent;padding:0;height:28px;width:40px;"></label></div></div><div style="background:var(--bg-input);border:1px solid var(--border-color);padding:18px;margin-bottom:24px;border-radius:10px;"><div style="font-weight:600;margin-bottom:12px;color:var(--shen-color);">3. 批量上传</div><input type="file" id="splitUpload" accept="image/jpeg, image/png, image/webp" multiple style="width:100%;color:var(--text-main);padding:10px;border:1px dashed var(--border-color);border-radius:8px;background:var(--bg-container);cursor:pointer;"></div><button id="processSplitBtn" onclick="runImageSplitter()" style="background-color:var(--bg-user-msg);color:white;border:none;padding:14px 20px;font-size:1rem;border-radius:8px;cursor:pointer;width:100%;font-weight:600;transition:0.2s;">🚀 开始处理并打包下载 (ZIP)</button><div id="splitStatus" style="margin-top:18px;font-size:0.95rem;color:var(--highlight-color);font-weight:600;text-align:center;"></div></div></div>`; }
 async function runImageSplitter() {
     const uploadInput = document.getElementById('splitUpload'); const statusDiv = document.getElementById('splitStatus'); const processBtn = document.getElementById('processSplitBtn'); const files = uploadInput.files;
     if (files.length === 0) return alert('请先选择图片');
@@ -656,18 +518,11 @@ function sendImageGenMessage() {
     let u = getUserUsage(currentUserKey);
     if (u.images >= u.limit) return alert(`您的生图额度已耗尽 (已用 ${u.images} / 额度 ${u.limit})，请联系管理员增加额度！`);
 
-    const input = document.getElementById('userInput');
-    let msg = input.value.trim();
-    
-    if(!msg) {
-        const altInput = document.getElementById('imgGenInput');
-        if(altInput) msg = altInput.value.trim();
-    }
-    
+    const input = document.getElementById('userInput'); let msg = input.value.trim();
+    if(!msg) { const altInput = document.getElementById('imgGenInput'); if(altInput) msg = altInput.value.trim(); }
     if(!msg && !currentUploadedImageBase64) return;
     
-    const chat = chats.find(c => c.id === IMAGE_GEN_ID) || chats.find(c => c.id === currentChatId);
-    if(!chat) return;
+    const chat = chats.find(c => c.id === IMAGE_GEN_ID) || chats.find(c => c.id === currentChatId); if(!chat) return;
     
     const w = document.getElementById('imgWidth').value; const h = document.getElementById('imgHeight').value;
     const sel = document.getElementById('imgGenModelSelect'); const modelText = sel.options[sel.selectedIndex].text;
@@ -685,8 +540,7 @@ function sendImageGenMessage() {
 
     document.getElementById('imgGenSettingsPanel').style.display = 'none';
     chat.messages.push({ role: 'user', content: `【模型】${modelText}\n【尺寸设定】${currentSelectedRatioText} (${w}x${h}) | ${currentSelectedResText}\n【提示词】${finalEngineeredPrompt}`, attachedImage: currentUploadedImageBase64, timestamp: Date.now() });
-    input.value = ''; 
-    if(document.getElementById('imgGenInput')) document.getElementById('imgGenInput').value = '';
+    input.value = ''; if(document.getElementById('imgGenInput')) document.getElementById('imgGenInput').value = '';
     clearGenImage(); renderMessages();
     
     setTimeout(() => {
@@ -708,11 +562,11 @@ function renderHubContent() {
         <div class="desktop-hub-container">
             <div class="hub-icon-big">🎬</div>
             <div class="hub-title">剧本转分镜 (九雨)</div>
-            <button class="hub-new-btn" onclick="createNewStoryboard()" title="建立新的分镜创作空间">＋ 新建分镜项目</button>
+            <button class="hub-new-btn" onclick="createNewStoryboard()">＋ 新建分镜项目</button>
             <div class="hub-recent-section">
                 <div class="hub-list-title">近期对话</div>
                 ${chats.filter(c => c.isStoryboard).length === 0 ? '<div style="text-align:center; color: var(--text-secondary); padding: 30px;">暂无分镜项目</div>' : chats.filter(c => c.isStoryboard).sort((a,b) => b.id - a.id).slice(0,5).map(c => `
-                    <div class="hub-item" onclick="switchChat('${c.id}')"><div class="hub-item-icon">🎬</div><div class="hub-item-title" title="${c.title}">${c.title}</div><div class="hub-item-actions"><button onclick="openRenameModal('${c.id}', event)" title="重新编辑此对话的文件名">✏️ 重命名</button><button onclick="deleteChat('${c.id}', event)" title="永久物理删除此聊天记录">🗑️ 删除</button></div></div>
+                    <div class="hub-item" onclick="switchChat('${c.id}')"><div class="hub-item-icon">🎬</div><div class="hub-item-title" title="${c.title}">${c.title}</div><div class="hub-item-actions"><button onclick="openRenameModal('${c.id}', event)">✏️ 重命名</button><button onclick="deleteChat('${c.id}', event)">🗑️ 删除</button></div></div>
                 `).join('')}
             </div>
         </div>
@@ -735,8 +589,7 @@ function renderHubContent() {
 }
 
 function switchChat(id) { 
-    isBulkMode = false; selectedAssetIds.clear(); 
-    currentChatId = id; 
+    isBulkMode = false; selectedAssetIds.clear(); currentChatId = id; 
     const inputSec = document.getElementById('inputSection'), imgGenSec = document.getElementById('imageGenInputSection'), chatBox = document.getElementById('chatBox'), title = document.getElementById('headerTitle'), backBtn = document.getElementById('backToHubBtn'), editIcon = document.getElementById('headerEditIcon'), input = document.getElementById('userInput');
     const exportBtn = document.getElementById('exportPdfBtn'); 
     
@@ -755,16 +608,13 @@ function switchChat(id) {
     }
     
     renderSidebar(); 
-    if (window.innerWidth <= 768 && !isSidebarCollapsed) {
-        toggleSidebar();
-    }
+    if (window.innerWidth <= 768 && !isSidebarCollapsed) { toggleSidebar(); }
 }
 
 function renderSidebar() {
     const list = document.getElementById('chatList'); list.innerHTML = '';
     let display = currentTab === 'fav' ? chats.filter(c => c.isFavorite && !c.isStoryboard && !c.isImageGen) : chats.filter(c => !c.isStoryboard && !c.isImageGen); 
     
-    // 【核心识别逻辑】区分闲聊和分镜的侧边栏高亮状态
     document.getElementById('storyboardBtn').classList.toggle('active', currentChatId === HUB_ID || chats.find(c=>c.id===currentChatId)?.isStoryboard);
     document.getElementById('imageGenBtn').classList.toggle('active', currentChatId === IMAGE_GEN_ID);
     document.getElementById('teamAssetBtn').classList.toggle('active', currentChatId === TEAM_ASSET_ID);
@@ -777,7 +627,6 @@ function renderSidebar() {
         return b.id - a.id; 
     }).forEach(c => {
         const div = document.createElement('div'); div.className = `chat-item ${c.id === currentChatId ? 'active' : ''}`; div.onclick = () => switchChat(c.id);
-        
         const d = new Date(parseInt(c.id)); 
         const y = d.getFullYear(), mo = String(d.getMonth()+1).padStart(2,'0'), day = String(d.getDate()).padStart(2,'0');
         const h = String(d.getHours()).padStart(2,'0'), min = String(d.getMinutes()).padStart(2,'0');
@@ -789,10 +638,10 @@ function renderSidebar() {
                 <span style="font-size:0.7rem; color:var(--text-secondary); opacity:0.6; margin-top:2px;">${timeStr}</span>
             </div>
             <div class="chat-actions">
-                <button class="action-btn" onclick="togglePin('${c.id}', event)" title="置顶">📍</button>
-                <button class="action-btn" onclick="toggleFav('${c.id}', event)" title="收藏">${c.isFavorite?'🌟':'⭐'}</button>
-                <button class="action-btn" onclick="openRenameModal('${c.id}', event)" title="重命名">✏️</button>
-                <button class="action-btn" onclick="deleteChat('${c.id}', event)" title="删除">🗑️</button>
+                <button class="action-btn" onclick="togglePin('${c.id}', event)">📍</button>
+                <button class="action-btn" onclick="toggleFav('${c.id}', event)">${c.isFavorite?'🌟':'⭐'}</button>
+                <button class="action-btn" onclick="openRenameModal('${c.id}', event)">✏️</button>
+                <button class="action-btn" onclick="deleteChat('${c.id}', event)">🗑️</button>
             </div>`;
         list.appendChild(div);
     });
@@ -801,20 +650,10 @@ function renderSidebar() {
 function formatText(text) {
     if(!text) return '';
     let html = text.replace(/</g, "&lt;").replace(/>/g, "&gt;"); 
-    
     const codeBlocks = [];
-    html = html.replace(/```([\s\S]*?)```/g, function(match, code) {
-        codeBlocks.push(code);
-        return `___CODE_BLOCK_${codeBlocks.length - 1}___`;
-    });
-    
-    html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-    html = html.replace(/\n/g, '<br>'); 
-    
-    html = html.replace(/___CODE_BLOCK_(\d+)___/g, function(match, i) {
-        return `<pre><code>${codeBlocks[i]}</code></pre>`;
-    });
-    
+    html = html.replace(/```([\s\S]*?)```/g, function(match, code) { codeBlocks.push(code); return `___CODE_BLOCK_${codeBlocks.length - 1}___`; });
+    html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>'); html = html.replace(/\n/g, '<br>'); 
+    html = html.replace(/___CODE_BLOCK_(\d+)___/g, function(match, i) { return `<pre><code>${codeBlocks[i]}</code></pre>`; });
     return html;
 }
 
@@ -824,94 +663,54 @@ function renderMessages() {
     const chat = chats.find(c => c.id === currentChatId); if(!chat) return;
     
     chat.messages.forEach((m, index) => {
-        const wrapper = document.createElement('div');
-        wrapper.style.display = 'flex';
-        wrapper.style.flexDirection = 'column';
-        wrapper.style.alignItems = m.role === 'user' ? 'flex-end' : 'flex-start';
-        wrapper.style.width = '100%';
-
-        const timeDiv = document.createElement('div');
-        timeDiv.style.fontSize = '0.75rem';
-        timeDiv.style.color = 'var(--text-secondary)';
-        timeDiv.style.opacity = '0.6';
-        timeDiv.style.marginBottom = '6px';
-        timeDiv.style.padding = '0 8px';
-        
-        const d = new Date(m.timestamp || parseInt(chat.id) || Date.now());
-        const y = d.getFullYear(), mo = String(d.getMonth()+1).padStart(2,'0'), day = String(d.getDate()).padStart(2,'0');
-        const h = String(d.getHours()).padStart(2,'0'), min = String(d.getMinutes()).padStart(2,'0');
+        const wrapper = document.createElement('div'); wrapper.style.display = 'flex'; wrapper.style.flexDirection = 'column'; wrapper.style.alignItems = m.role === 'user' ? 'flex-end' : 'flex-start'; wrapper.style.width = '100%';
+        const timeDiv = document.createElement('div'); timeDiv.style.fontSize = '0.75rem'; timeDiv.style.color = 'var(--text-secondary)'; timeDiv.style.opacity = '0.6'; timeDiv.style.marginBottom = '6px'; timeDiv.style.padding = '0 8px';
+        const d = new Date(m.timestamp || parseInt(chat.id) || Date.now()); const y = d.getFullYear(), mo = String(d.getMonth()+1).padStart(2,'0'), day = String(d.getDate()).padStart(2,'0'); const h = String(d.getHours()).padStart(2,'0'), min = String(d.getMinutes()).padStart(2,'0');
         timeDiv.innerText = `${y}-${mo}-${day} ${h}:${min}`;
 
-        const div = document.createElement('div'); div.className = `message ${m.role === 'user' ? 'user-msg' : 'bot-msg'}`;
-        div.style.alignSelf = 'auto';
-        
-        const contentWrapper = document.createElement('div');
-        contentWrapper.className = 'text-content-wrapper';
+        const div = document.createElement('div'); div.className = `message ${m.role === 'user' ? 'user-msg' : 'bot-msg'}`; div.style.alignSelf = 'auto';
+        const contentWrapper = document.createElement('div'); contentWrapper.className = 'text-content-wrapper';
         
         const isLongText = (m.content && m.content.length > 200) || false;
-        if (m.role === 'user' && isLongText) {
-            contentWrapper.classList.add('text-collapsed');
-        }
+        if (m.role === 'user' && isLongText) { contentWrapper.classList.add('text-collapsed'); }
 
-        const contentDiv = document.createElement('div'); 
-        contentDiv.className = 'msg-content'; 
-        contentDiv.id = `msg-content-${index}`; 
-
-        if (m.isThinking) {
-            contentDiv.innerHTML = `<div class="typing-indicator"><span></span><span></span><span></span><span class="typing-text">正在深度思考中...</span></div>`;
-        } else {
-            contentDiv.innerHTML = formatText(m.content);
-        }
+        const contentDiv = document.createElement('div'); contentDiv.className = 'msg-content'; contentDiv.id = `msg-content-${index}`; 
+        if (m.isThinking) { contentDiv.innerHTML = `<div class="typing-indicator"><span></span><span></span><span></span><span class="typing-text">正在思考...</span></div>`; } 
+        else { contentDiv.innerHTML = formatText(m.content); }
         
         contentWrapper.appendChild(contentDiv);
         
-        if (m.role === 'user' && m.attachedImage) { 
-            const imgWrap = document.createElement('div'); imgWrap.style.marginTop = '10px'; imgWrap.innerHTML = `<img src="${m.attachedImage}" style="max-width: 120px; border-radius: 8px; border: 2px solid rgba(255,255,255,0.3);">`; contentWrapper.appendChild(imgWrap); 
-        }
+        if (m.role === 'user' && m.attachedImage) { const imgWrap = document.createElement('div'); imgWrap.style.marginTop = '10px'; imgWrap.innerHTML = `<img src="${m.attachedImage}" style="max-width: 120px; border-radius: 8px; border: 2px solid rgba(255,255,255,0.3);">`; contentWrapper.appendChild(imgWrap); }
         if (m.type === 'image_gallery' && m.images) {
             const galleryDiv = document.createElement('div'); galleryDiv.className = 'gallery-container';
-            m.images.forEach((imgBase64, imgIndex) => { const item = document.createElement('div'); item.className = 'gallery-item'; item.innerHTML = `<img src="${imgBase64}"><button class="dl-btn" onclick="downloadSingleImage('${imgBase64}', ${imgIndex})" title="将这张超清图片下载到本地">⬇️</button>`; galleryDiv.appendChild(item); });
+            m.images.forEach((imgBase64, imgIndex) => { const item = document.createElement('div'); item.className = 'gallery-item'; item.innerHTML = `<img src="${imgBase64}"><button class="dl-btn" onclick="downloadSingleImage('${imgBase64}', ${imgIndex})">⬇️</button>`; galleryDiv.appendChild(item); });
             contentWrapper.appendChild(galleryDiv);
         }
         
         const actionBar = document.createElement('div'); actionBar.className = 'msg-actions';
 
         if ((isLongText || m.role === 'bot') && !m.isThinking) {
-            const toggleBtn = document.createElement('button');
-            toggleBtn.className = 'msg-action-btn';
-            toggleBtn.innerHTML = (m.role === 'user' && isLongText) ? '🔽 展开全文' : '🔼 收起内容';
-            
+            const toggleBtn = document.createElement('button'); toggleBtn.className = 'msg-action-btn'; toggleBtn.innerHTML = (m.role === 'user' && isLongText) ? '🔽 展开' : '🔼 收起';
             if (m.role === 'bot' && m.content.length < 100) toggleBtn.style.display = 'none';
-
-            toggleBtn.onclick = () => {
-                const isNowCollapsed = contentWrapper.classList.toggle('text-collapsed');
-                toggleBtn.innerHTML = isNowCollapsed ? '🔽 展开全文' : '🔼 收起内容';
-            };
+            toggleBtn.onclick = () => { const isNowCollapsed = contentWrapper.classList.toggle('text-collapsed'); toggleBtn.innerHTML = isNowCollapsed ? '🔽 展开' : '🔼 收起'; };
             actionBar.appendChild(toggleBtn);
         }
 
         if (chat.isStoryboard && m.role === 'bot' && !m.isThinking) {
-            const extractBtn = document.createElement('button'); extractBtn.className = 'msg-action-btn'; extractBtn.innerHTML = '✨ 提取并生成画面'; extractBtn.onclick = () => extractAndGenerateImage(m.content); extractBtn.title = "自动截取该分镜描述，携带至 AI 生图面板中一键渲染画幅"; actionBar.appendChild(extractBtn);
+            const extractBtn = document.createElement('button'); extractBtn.className = 'msg-action-btn'; extractBtn.innerHTML = '✨ 提取画面'; extractBtn.onclick = () => extractAndGenerateImage(m.content); actionBar.appendChild(extractBtn);
         }
-        if (m.type === 'image_gallery') { const zipBtn = document.createElement('button'); zipBtn.className = 'msg-action-btn'; zipBtn.innerHTML = '📦 打包下载 ZIP'; zipBtn.onclick = () => downloadGalleryZip(index); zipBtn.title = "将本次生成的所有图片一键打包为 ZIP 下载"; actionBar.appendChild(zipBtn); }
+        if (m.type === 'image_gallery') { const zipBtn = document.createElement('button'); zipBtn.className = 'msg-action-btn'; zipBtn.innerHTML = '📦 ZIP'; zipBtn.onclick = () => downloadGalleryZip(index); actionBar.appendChild(zipBtn); }
+        if (!m.isThinking) { const copyBtn = document.createElement('button'); copyBtn.className = 'msg-action-btn'; copyBtn.innerHTML = '📋 复制'; copyBtn.onclick = () => copyToClipboard(m.content); actionBar.appendChild(copyBtn); }
+        if (currentChatId !== IMAGE_GEN_ID && !m.isThinking) { const delBtn = document.createElement('button'); delBtn.className = 'msg-action-btn delete-action'; delBtn.innerHTML = '🗑️ 删除'; delBtn.onclick = () => { openConfirmModal(() => { chat.messages.splice(index, 1); saveChats(); renderMessages(); }); }; actionBar.appendChild(delBtn); }
         
-        if (!m.isThinking) {
-            const copyBtn = document.createElement('button'); copyBtn.className = 'msg-action-btn'; copyBtn.innerHTML = '📋 一键复制'; copyBtn.onclick = () => copyToClipboard(m.content); copyBtn.title = "完整复制当前气泡内的所有文本代码"; actionBar.appendChild(copyBtn);
-        }
-        
-        if (currentChatId !== IMAGE_GEN_ID && !m.isThinking) { const delBtn = document.createElement('button'); delBtn.className = 'msg-action-btn delete-action'; delBtn.innerHTML = '🗑️ 删除'; delBtn.onclick = () => { openConfirmModal(() => { chat.messages.splice(index, 1); saveChats(); renderMessages(); }); }; delBtn.title = "在上下文中移除这段对话数据"; actionBar.appendChild(delBtn); }
-        
-        div.appendChild(contentWrapper); div.appendChild(actionBar); 
-        wrapper.appendChild(timeDiv); wrapper.appendChild(div);
-        box.appendChild(wrapper);
+        div.appendChild(contentWrapper); div.appendChild(actionBar); wrapper.appendChild(timeDiv); wrapper.appendChild(div); box.appendChild(wrapper);
     });
     box.scrollTop = box.scrollHeight;
 }
 
 function exportToPDF() {
     const chat = chats.find(c => c.id === currentChatId);
-    if (!chat || chat.messages.length === 0) return alert("当前文档没有可导出的内容。");
-    
+    if (!chat || chat.messages.length === 0) return alert("无可导出内容。");
     let printHTML = `<h1 style="text-align: center;">${chat.title}</h1><hr style="margin-bottom: 20px;">`;
     chat.messages.forEach((m) => {
         printHTML += `<div class="print-msg"><div class="print-role">${m.role === 'user' ? '🎬 剧本/输入' : '🎥 分镜描述/AI回复'}</div><div class="print-content">${formatText(m.content)}</div>`;
@@ -919,24 +718,13 @@ function exportToPDF() {
         if (m.type === 'image_gallery' && m.images) { printHTML += `<div style="display:flex; gap:10px; margin-top:10px; flex-wrap:wrap;">`; m.images.forEach(img => printHTML += `<img src="${img}" class="print-img" style="max-width: 200px;">`); printHTML += `</div>`; }
         printHTML += `</div>`;
     });
-    
-    const printArea = document.getElementById('printArea'); printArea.innerHTML = printHTML;
-    addAuditLog('导出了剧本分镜 PDF 文档'); window.print();
+    document.getElementById('printArea').innerHTML = printHTML; addAuditLog('导出了 PDF'); window.print();
 }
 
 function createNewChat() { const id = Date.now().toString(); chats.unshift({id, title:"💬 新闲聊", messages:[], isPinned:false, isFavorite:false, isStoryboard:false}); saveChats(); switchChat(id); }
 function createNewStoryboard() { const id = Date.now().toString(); chats.unshift({id, title:"未命名分镜项目", messages:[], isPinned:false, isFavorite:false, isStoryboard:true}); saveChats(); switchChat(id); addAuditLog('新建了分镜项目');}
-
 function saveChats() { if(currentUserKey) { localStorage.setItem('chats_' + currentUserKey, JSON.stringify(chats)); syncChatsToCloud(); } }
-
-function togglePin(id, e) { 
-    e.stopPropagation(); 
-    const c = chats.find(x=>x.id===id); 
-    c.isPinned = !c.isPinned; 
-    if(c.isPinned) { c.pinnedAt = Date.now(); } else { delete c.pinnedAt; }
-    saveChats(); renderSidebar(); 
-}
-
+function togglePin(id, e) { e.stopPropagation(); const c = chats.find(x=>x.id===id); c.isPinned = !c.isPinned; if(c.isPinned) { c.pinnedAt = Date.now(); } else { delete c.pinnedAt; } saveChats(); renderSidebar(); }
 function toggleFav(id, e) { e.stopPropagation(); const c = chats.find(x=>x.id===id); c.isFavorite = !c.isFavorite; saveChats(); renderSidebar(); }
 function switchTab(t) { currentTab = t; document.getElementById('tab-all').classList.toggle('active', t==='all'); document.getElementById('tab-fav').classList.toggle('active', t==='fav'); renderSidebar(); }
 function deleteChat(id, e) { e.stopPropagation(); openConfirmModal(() => { chats = chats.filter(x=>x.id!==id); saveChats(); if(currentChatId === HUB_ID || currentChatId === id) { switchChat(HUB_ID); } else { renderSidebar(); } }); }
@@ -948,132 +736,59 @@ function toggleTheme() { document.body.classList.toggle('dark-theme'); }
 
 async function sendMessage() {
     if(!currentUserKey) return;
-    const k = currentUserKey;
-    const apiSource = document.getElementById('apiSourceSelect').value;
-    const modelType = document.getElementById('modelSelect').value;
-    const input = document.getElementById('userInput');
-    const msg = input.value.trim();
-    const chat = chats.find(c => c.id === currentChatId);
-    
+    const k = currentUserKey; const apiSource = document.getElementById('apiSourceSelect').value; const modelType = document.getElementById('modelSelect').value; const input = document.getElementById('userInput'); const msg = input.value.trim(); const chat = chats.find(c => c.id === currentChatId);
     if(!msg || !chat || !modelType) return; 
     
     chat.messages.push({ role:'user', content:msg, timestamp: Date.now() });
-    
     if(chat.title.includes("新") || chat.title.includes("未命名")) { chat.title = msg.substring(0,12); document.getElementById('headerTitle').innerText = chat.title; }
     input.value = ''; 
-    
-    const botMsgIndex = chat.messages.length;
-    chat.messages.push({ role:'bot', content:'', timestamp: Date.now(), isThinking: true });
-    renderMessages();
+    const botMsgIndex = chat.messages.length; chat.messages.push({ role:'bot', content:'', timestamp: Date.now(), isThinking: true }); renderMessages();
     
     try {
-        const res = await fetch(`${API_BASE_URL}/chat`, { 
-            method:'POST', headers:{'Content-Type':'application/json'}, 
-            body:JSON.stringify({ 
-                password: k, 
-                message: msg, 
-                history: chat.messages.slice(0, -2).filter(m => !m.isThinking), 
-                api_source: apiSource, 
-                model_type: modelType,
-                is_storyboard: !!chat.isStoryboard
-            }) 
-        });
-        
+        const res = await fetch(`${API_BASE_URL}/chat`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ password: k, message: msg, history: chat.messages.slice(0, -2).filter(m => !m.isThinking), api_source: apiSource, model_type: modelType, is_storyboard: !!chat.isStoryboard }) });
         chat.messages[botMsgIndex].isThinking = false;
 
-        if (!res.ok) {
-            const d = await res.json().catch(()=>({}));
-            chat.messages[botMsgIndex].content = d.error || "网络连接失败，状态码: " + res.status;
-            saveChats(); renderMessages(); return;
-        }
+        if (!res.ok) { const d = await res.json().catch(()=>({})); chat.messages[botMsgIndex].content = d.error || "网络连接失败，状态码: " + res.status; saveChats(); renderMessages(); return; }
 
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder('utf-8');
-        let done = false;
-        let buffer = '';
-
-        let targetContent = "";
-        let displayedContent = "";
-        let isAnimating = false;
-        let typeInterval = null;
+        const reader = res.body.getReader(); const decoder = new TextDecoder('utf-8'); let done = false; let buffer = '';
+        let targetContent = ""; let displayedContent = ""; let isAnimating = false; let typeInterval = null;
 
         function startSmoothTyping() {
             if (isAnimating) return;
             isAnimating = true;
-
             typeInterval = setInterval(() => {
                 let diff = targetContent.length - displayedContent.length;
-
                 if (diff > 0) {
-                    let step = 1;
-                    if (diff > 20) step = 2;
-                    if (diff > 60) step = 3;
-                    if (diff > 120) step = 5;
-
-                    displayedContent += targetContent.substr(displayedContent.length, step);
-                    chat.messages[botMsgIndex].content = displayedContent;
-
-                    if (currentChatId === chat.id) {
-                        const div = document.getElementById(`msg-content-${botMsgIndex}`);
-                        if (div) {
-                            div.innerHTML = formatText(displayedContent) + '<span style="color: var(--text-secondary);"> ▋</span>';
-                            const box = document.getElementById('chatBox');
-                            box.scrollTop = box.scrollHeight;
-                        }
-                    }
+                    let step = 1; if (diff > 20) step = 2; if (diff > 60) step = 3; if (diff > 120) step = 5;
+                    displayedContent += targetContent.substr(displayedContent.length, step); chat.messages[botMsgIndex].content = displayedContent;
+                    if (currentChatId === chat.id) { const div = document.getElementById(`msg-content-${botMsgIndex}`); if (div) { div.innerHTML = formatText(displayedContent) + '<span style="color: var(--text-secondary);"> ▋</span>'; const box = document.getElementById('chatBox'); box.scrollTop = box.scrollHeight; } }
                 } else if (done) {
-                    clearInterval(typeInterval);
-                    isAnimating = false;
-                    if (currentChatId === chat.id) {
-                        const div = document.getElementById(`msg-content-${botMsgIndex}`);
-                        if (div) div.innerHTML = formatText(targetContent); 
-                    }
-                    saveChats();
-                    renderSidebar();
+                    clearInterval(typeInterval); isAnimating = false;
+                    if (currentChatId === chat.id) { const div = document.getElementById(`msg-content-${botMsgIndex}`); if (div) div.innerHTML = formatText(targetContent); }
+                    saveChats(); renderSidebar();
                 }
             }, 30); 
         }
 
         while (!done) {
-            const { value, done: readerDone } = await reader.read();
-            done = readerDone;
+            const { value, done: readerDone } = await reader.read(); done = readerDone;
             if (value) {
-                buffer += decoder.decode(value, { stream: true });
-                let lines = buffer.split('\n');
-                buffer = lines.pop(); 
-                
+                buffer += decoder.decode(value, { stream: true }); let lines = buffer.split('\n'); buffer = lines.pop(); 
                 for (let line of lines) {
                     if (line.trim()) {
                         try {
                             const parsed = JSON.parse(line);
-                            if (parsed.reply) {
-                                targetContent += parsed.reply;
-                                startSmoothTyping(); 
-                            } else if (parsed.error) {
-                                targetContent += "\n[报错]: " + parsed.error;
-                                startSmoothTyping();
-                            }
+                            if (parsed.reply) { targetContent += parsed.reply; startSmoothTyping(); } 
+                            else if (parsed.error) { targetContent += "\n[报错]: " + parsed.error; startSmoothTyping(); }
                         } catch (e) {}
                     }
                 }
             }
         }
         
-        if (!isAnimating && done) {
-            chat.messages[botMsgIndex].content = targetContent;
-            if (currentChatId === chat.id) {
-                const div = document.getElementById(`msg-content-${botMsgIndex}`);
-                if (div) div.innerHTML = formatText(chat.messages[botMsgIndex].content);
-            }
-            saveChats(); 
-            renderSidebar();
-        }
+        if (!isAnimating && done) { chat.messages[botMsgIndex].content = targetContent; if (currentChatId === chat.id) { const div = document.getElementById(`msg-content-${botMsgIndex}`); if (div) div.innerHTML = formatText(chat.messages[botMsgIndex].content); } saveChats(); renderSidebar(); }
 
-    } catch(e) { 
-        chat.messages[botMsgIndex].isThinking = false;
-        chat.messages[botMsgIndex].content = "网络连接失败，请重试~";
-        saveChats(); renderMessages(); 
-    }
+    } catch(e) { chat.messages[botMsgIndex].isThinking = false; chat.messages[botMsgIndex].content = "网络连接失败，请重试~"; saveChats(); renderMessages(); }
 }
 
 init();
