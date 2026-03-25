@@ -171,25 +171,24 @@
         
         <div id="adminTab-keys" class="admin-tab-content active"><div style="display:flex; gap:10px; margin-bottom:15px;"><input type="text" id="newKeyNote" placeholder="请输入使用者备注 (如: 张三)" style="flex:1; padding:10px; border-radius:8px; border:1px solid var(--border-color);"><button class="modal-btn btn-confirm" onclick="generateNewKey()">生成密钥</button></div><div style="max-height:350px; overflow-y:auto; border:1px solid var(--border-color); border-radius:10px;"><table style="width:100%; border-collapse: collapse; text-align: left; font-size: 0.9rem;"><thead style="background: var(--bg-hover); position: sticky; top: 0; z-index: 1;"><tr><th style="padding: 10px; border-bottom: 1px solid var(--border-color); width: 25%;">访问密钥</th><th style="padding: 10px; border-bottom: 1px solid var(--border-color);">备注</th><th style="padding: 10px; border-bottom: 1px solid var(--border-color);">已生图 / 额度</th><th style="padding: 10px; border-bottom: 1px solid var(--border-color); width: 170px;">操作</th></tr></thead><tbody id="keyTableBody"></tbody></table></div></div>
         
-        <div id="adminTab-models" class="admin-tab-content" style="display: none;">
-            <p style="font-size:0.8rem; color:var(--text-secondary); margin-bottom: 15px;">统一指挥部：管理“AI 生图控制台”的专属画图模型。上架时必须为其指定一个请求通道。</p>
+       <div id="adminTab-models" class="admin-tab-content" style="display: none;">
+            <p style="font-size:0.8rem; color:var(--text-secondary); margin-bottom: 15px;">统一指挥部：管理“AI 生图控制台”及特殊工具的底层驱动模型。您可以自由上架/下架，并自定义前端展示名称（支持 Emoji 如 ✨推荐）。</p>
             
             <div style="border: 1px solid var(--border-color); border-radius: 10px; padding: 15px; background: var(--bg-container);">
-                <h4 style="margin: 0 0 15px 0; color: var(--text-main);">🎨 生图引擎模型池</h4>
+                <h4 style="margin: 0 0 15px 0; color: var(--text-main);">🎨 生图引擎与特殊模型池</h4>
                 <div id="imageModelList" style="margin-bottom: 15px; max-height: 300px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px;">
                     </div>
                 <div style="display: flex; gap: 8px; border-top: 1px dashed var(--border-color); padding-top: 15px;">
-                    <select id="newImageModelSource" style="padding:8px; border-radius:6px; border:1px solid var(--border-color); font-size:0.85rem; background:var(--bg-input); color:var(--text-main); outline:none;">
+                    <select id="newImageModelSource" style="padding:8px; border-radius:6px; border:1px solid var(--border-color); font-size:0.85rem; background:var(--bg-input); color:var(--text-main); outline:none;" title="选择此生图模型要走哪条中转 API 通道">
                         </select>
-                    <input type="text" id="newImageModelId" placeholder="接口标识 (如 nanopro)" style="flex:1; padding:8px 12px; border-radius:6px; border:1px solid var(--border-color); font-size:0.85rem; background:var(--bg-input); color:var(--text-main); outline:none;">
-                    <input type="text" id="newImageModelName" placeholder="前端名称 (如 👑 Nano Banana Pro)" style="flex:1; padding:8px 12px; border-radius:6px; border:1px solid var(--border-color); font-size:0.85rem; background:var(--bg-input); color:var(--text-main); outline:none;">
-                    <button class="nav-btn" onclick="addModel('image')" style="padding: 8px 20px;">➕ 添加上架</button>
+                    <input type="text" id="newImageModelId" placeholder="底层接口标识 (如 nanopro)" style="flex:1; padding:8px 12px; border-radius:6px; border:1px solid var(--border-color); font-size:0.85rem; background:var(--bg-input); color:var(--text-main); outline:none;">
+                    <input type="text" id="newImageModelName" placeholder="前端自定义名称 (如 ✨推荐 Nano)" style="flex:1; padding:8px 12px; border-radius:6px; border:1px solid var(--border-color); font-size:0.85rem; background:var(--bg-input); color:var(--text-main); outline:none;">
+                    <button class="nav-btn" onclick="addModel('image')" style="padding: 8px 20px; font-weight: bold;">➕ 添加上架</button>
                 </div>
             </div>
             
             <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 15px;">* 提示：普通文本对话大模型，请前往【🌐 API 通道】面板挂载。</p>
         </div>
-
       <div id="adminTab-api" class="admin-tab-content" style="display: none;">
             <p style="font-size:0.8rem; color:var(--text-secondary); margin-bottom: 15px;">配置对话通道及挂载文本模型。此处模型将全部自动注入聊天系统。</p>
             

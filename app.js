@@ -306,6 +306,11 @@ async function loadApiSettings() {
             if(d.custom_channels) d.custom_channels.forEach(cc => addCustomChannelUI(cc));
             
             renderChannelModels('gemini'); renderChannelModels('geeknow'); renderChannelModels('grsai');
+            
+            // 关键修复：拉取配置后，立即把通道列表注入到“生图控制台”的下拉选择框中
+            if(typeof updateAdminModelFilterUI === 'function') {
+                updateAdminModelFilterUI(d.custom_channels || []);
+            }
         } 
     } catch(e) {} 
 }
@@ -326,6 +331,11 @@ async function saveApiSettings() {
     try { 
         await fetch(`${API_BASE_URL}/admin/save_config`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) }); 
         showToast("✅ 接口通道及模型已云端保存，所有成员将同步生效！"); addAuditLog('全局修改了通道接口与模型分配'); 
+        
+        // 关键修复：保存通道修改后，实时刷新生图控制台的下拉通道选项
+        if(typeof updateAdminModelFilterUI === 'function') {
+            updateAdminModelFilterUI(custom_channels);
+        }
     } catch(e) { alert("保存失败"); } 
 }
 

@@ -653,7 +653,6 @@ def generate_image():
     
     dynamic_key = ""
     base_url = ""
-    # 获取对应通道的 Key 和 URL
     if source == "gemini":
         return jsonify({"error": "Gemini 官方文本直连暂不支持直接生图，请切换至中转通道"}), 400
     elif source == "geeknow":
@@ -674,13 +673,12 @@ def generate_image():
 
     try:
         headers = {"Authorization": f"Bearer {dynamic_key}", "Content-Type": "application/json"}
-        # 标准 OpenAI 兼容协议的生图请求体
         payload = {
             "model": model,
             "prompt": prompt,
-            "n": 1, # 生成张数，目前市面上绝大多数中转强制为 1
+            "n": 1,
             "size": size,
-            "response_format": "b64_json" # 强制要求返回 base64 格式，以兼容你前台的 ZIP 下载功能
+            "response_format": "b64_json"
         }
         
         api_url = f"{base_url}/images/generations"
@@ -690,15 +688,46 @@ def generate_image():
             res_data = r.json()
             images = []
             for item in res_data.get('data', []):
-                # 如果中转平台乖乖返回了 base64
-                if 'b64_json' in item:
+                if 'b64_json' in item and item['b64_json']:
                     images.append(f"data:image/png;base64,{item['b64_json']}")
-                # 如果中转平台只支持返回直链 URL
-                elif 'url' in item:
+                elif 'url' in item and item['url']:
                     images.append(item['url'])
-            return jsonify({"success": True, "images": images})
-        else:
-            return jsonify({"success": False, "error": f"通道接口报错 ({r.status_code}): {r.text[:200]}"}), 400
+            if images:
+                return jsonify({"success": True, "images": images})
+            else:
+                return jsonify({"success": False, "error": "通道返回成功，但未返回图片数据"}), 400
+        
+        # --- 【核心新增：智能降级容灾机制】 ---
+        # 如果通道不支持标准的生图接口 (报 404)，系统自动降级拦截，改用文本聊天接口请求生图！
+        if r.status_code == 404:
+            import re
+            chat_url = f"{base_url}/chat/completions"
+            chat_payload = {
+                "model": model,
+                "messages": [{"role": "user", "content": prompt}],
+                "stream": False
+            }
+            cr = requests.post(chat_url, json=chat_payload, headers=headers, timeout=120)
+            
+            if cr.ok:
+                try:
+                    content = cr.json()['choices'][0]['message']['content']
+                    found_urls = []
+                    # 使用正则暴力提取返回文本中的所有图片 URL (兼容 Markdown 和 原生链接)
+                    for match in re.findall(r'(?:!\[.*?\]\((http[^\)]+)\))|(http[s]?://[^\s"\'\]\)]+)', content):
+                        found_urls.append(match[0] if match[0] else match[1])
+                    
+                    if found_urls:
+                        return jsonify({"success": True, "images": found_urls})
+                    else:
+                        return jsonify({"success": False, "error": f"系统降级调用聊天接口成功，但对方未返回图片链接。返回内容: {content[:100]}"}), 400
+                except Exception as ce:
+                    return jsonify({"success": False, "error": f"降级解析失败: {str(ce)}"}), 400
+            else:
+                return jsonify({"success": False, "error": f"系统尝试降级请求也失败了 ({cr.status_code}): {cr.text[:100]}"}), 400
+        
+        return jsonify({"success": False, "error": f"通道接口报错 ({r.status_code}): {r.text[:200]}"}), 400
+
     except Exception as e:
         return jsonify({"success": False, "error": f"请求异常: {str(e)[:100]}"}), 500
 
