@@ -14,11 +14,11 @@
         "gemini_key": "",
         "gemini_proxy": "",
         "geeknow_enabled": true,
-        "geeknow_url": "https://www.geeknow.top/v1",
+        "geeknow_url": "",
         "geeknow_key": "",
         "grsai_enabled": true,
-        "grsai_url": "https://api.grsai.com/v1",
-        "grsai_key": "sk-a3a9583f4cc54dc3a7404d17c4800c22",
+        "grsai_url": "",
+        "grsai_key": "",
         "custom_channels": [],
         "dynamic_models": {
             "geeknow": [
@@ -39,14 +39,6 @@
                 {
                     "id": "nanopro",
                     "name": "👑 Nano Banana Pro"
-                },
-                {
-                    "id": "1",
-                    "name": "1"
-                },
-                {
-                    "id": "nano-banana-2",
-                    "name": "nano-banana-2"
                 }
             ]
         }

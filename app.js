@@ -69,9 +69,9 @@ function toggleKeyVisibility() { const el = document.getElementById('secretKey')
 function clearKeyInput() { document.getElementById('secretKey').value = ''; document.getElementById('secretKey').type = 'password'; }
 function onApiSourceChange() {
     const source = document.getElementById('apiSourceSelect').value; const ms = document.getElementById('modelSelect'); ms.innerHTML = '';
+    // 聊天通道仅读取该 channelId 下的数组数据，不再判断任何 type
     if(dynamicModels[source] && dynamicModels[source].length > 0) { 
-        // 只有标记为 chat 或者老旧未标记的模型才能进入聊天控制台
-        dynamicModels[source].filter(m => !m.type || m.type === 'chat').forEach(m => ms.innerHTML += `<option value="${m.id}">${m.name}</option>`); 
+        dynamicModels[source].forEach(m => ms.innerHTML += `<option value="${m.id}">${m.name}</option>`); 
     } 
     if(ms.innerHTML === '') { ms.innerHTML = `<option value="">无可用对话模型</option>`; }
     if(currentUserKey) { localStorage.setItem('api_source_' + currentUserKey, source); changeModel(); }
@@ -84,27 +84,13 @@ function loadImageModelsToUI() {
     is.innerHTML = ''; 
     let hasImageModels = false;
     
-    // 兼容历史遗留的独立 image 分类数据
+    // 生图控制台仅读取 dynamicModels.image 这个独立池子里的数据
     if(dynamicModels.image && dynamicModels.image.length > 0) {
         dynamicModels.image.forEach(m => {
-            is.innerHTML += `<option value="geeknow:::${m.id}">[旧生图区] ${m.name}</option>`;
+            const boundSource = m.source || 'geeknow';
+            // 将绑定的通道源藏进 value 里（格式： 通道:::模型），后端生图时直接解析！
+            is.innerHTML += `<option value="${boundSource}:::${m.id}">${m.name}</option>`;
             hasImageModels = true;
-        });
-    }
-
-    const channelNames = { gemini: '官方直连', geeknow: 'GeekNow', grsai: 'GRSAI' };
-    
-    // 遍历所有 API 通道，把标记为“image”的模型全收集过来
-    for(let channel in dynamicModels) {
-        if(channel === 'image') continue;
-        const channelName = channelNames[channel] || '自定义';
-        const models = dynamicModels[channel] || [];
-        models.forEach(m => {
-            if(m.type === 'image') {
-                // value 绑定格式为 "通道ID:::模型ID"，让后端知道去哪个通道发请求
-                is.innerHTML += `<option value="${channel}:::${m.id}">[${channelName}] ${m.name}</option>`;
-                hasImageModels = true;
-            }
         });
     }
     
@@ -208,29 +194,40 @@ function renderChannelModels(channelId) {
     const models = dynamicModels[channelId] || [];
     if(models.length === 0) { container.innerHTML = `<span style="font-size:0.8rem; color:var(--text-secondary);">暂无模型，请添加</span>`; return; }
     models.forEach(m => {
-        const icon = m.type === 'image' ? '🎨' : '💬';
-        container.innerHTML += `<div style="background:var(--bg-user-msg); color:white; border-radius:15px; padding:4px 10px; font-size:0.8rem; display:flex; align-items:center; gap:6px;"><span>${icon} ${m.name}</span><span style="cursor:pointer; color:#ffb3b3; font-weight:bold;" onclick="removeChannelModel('${channelId}', '${m.id}')" title="移除此模型">×</span></div>`;
+        container.innerHTML += `<div style="background:var(--bg-user-msg); color:white; border-radius:15px; padding:4px 10px; font-size:0.8rem; display:flex; align-items:center; gap:6px;"><span>💬 ${m.name}</span><span style="cursor:pointer; color:#ffb3b3; font-weight:bold;" onclick="removeChannelModel('${channelId}', '${m.id}')" title="移除此模型">×</span></div>`;
     });
 }
 
 function addChannelModel(channelId) {
     const idInput = document.getElementById(`newModelId-${channelId}`);
     const nameInput = document.getElementById(`newModelName-${channelId}`);
-    const typeInput = document.getElementById(`newModelType-${channelId}`);
     const id = idInput.value.trim(); const name = nameInput.value.trim();
-    const type = typeInput ? typeInput.value : 'chat';
     if(!id || !name) return alert('请填写完整的模型标识和显示名');
     if(!dynamicModels[channelId]) dynamicModels[channelId] = [];
     if(dynamicModels[channelId].find(m => m.id === id)) return alert('该模型标识已存在！');
-    dynamicModels[channelId].push({id, name, type});
+    dynamicModels[channelId].push({id, name});
     idInput.value = ''; nameInput.value = '';
-    renderChannelModels(channelId); onApiSourceChange(); loadImageModelsToUI();
+    renderChannelModels(channelId); onApiSourceChange();
 }
 
 function removeChannelModel(channelId, modelId) {
     if(!dynamicModels[channelId]) return;
     dynamicModels[channelId] = dynamicModels[channelId].filter(m => m.id !== modelId);
     renderChannelModels(channelId); onApiSourceChange();
+}
+
+function updateAdminModelFilterUI(custom_channels = []) {
+    const filter = document.getElementById('newImageModelSource');
+    if(!filter) return;
+    const currentVal = filter.value;
+    filter.innerHTML = `<option value="geeknow">🚀 GeekNow</option><option value="grsai">⚡ GRSAI</option><option value="gemini">🌐 官方直连</option>`;
+    custom_channels.forEach(cc => {
+        filter.innerHTML += `<option value="${cc.id}">🔌 ${cc.name}</option>`;
+        if (!dynamicModels[cc.id]) dynamicModels[cc.id] = [];
+    });
+    localStorage.setItem('sys_dynamic_models', JSON.stringify(dynamicModels));
+    filter.value = Array.from(filter.options).some(o => o.value === currentVal) ? currentVal : 'geeknow';
+    renderAdminModels();
 }
 
 function addCustomChannelUI(data = null) {
@@ -255,15 +252,14 @@ function addCustomChannelUI(data = null) {
                 <button class="nav-btn" onclick="checkCustomBalance('${id}', this)" style="flex: 1; border-color: #ff9500; color: #ff9500;">💰 查询余额</button>
             </div>
             <div style="margin-top: 15px; border-top: 1px dashed var(--border-color); padding-top: 15px;">
-                <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">📦 此通道挂载的模型：</div>
-                <div id="modelList-${id}" style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px;"></div>
-                <div style="display: flex; gap: 6px;">
-                    <select id="newModelType-${id}" style="padding:6px; border-radius:6px; border:1px solid var(--border-color); font-size:0.8rem; background:var(--bg-input); color:var(--text-main); outline:none;"><option value="chat">💬 对话</option><option value="image">🎨 生图</option></select>
-                    <input type="text" id="newModelId-${id}" placeholder="标识" style="flex:1; padding:6px; border-radius:6px; border:1px solid var(--border-color); font-size:0.8rem; background:var(--bg-input); color:var(--text-main);">
-                    <input type="text" id="newModelName-${id}" placeholder="显示名" style="flex:1; padding:6px; border-radius:6px; border:1px solid var(--border-color); font-size:0.8rem; background:var(--bg-input); color:var(--text-main);">
-                    <button class="nav-btn" onclick="addChannelModel('${id}')" style="padding: 6px 12px; font-size:0.85rem;">➕ 添加</button>
+                    <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">📦 挂载对话模型：</div>
+                    <div id="modelList-${id}" style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px;"></div>
+                    <div style="display: flex; gap: 6px;">
+                        <input type="text" id="newModelId-${id}" placeholder="标识" style="flex:1; padding:6px; border-radius:6px; border:1px solid var(--border-color); font-size:0.8rem; background:var(--bg-input); color:var(--text-main);">
+                        <input type="text" id="newModelName-${id}" placeholder="显示名" style="flex:1; padding:6px; border-radius:6px; border:1px solid var(--border-color); font-size:0.8rem; background:var(--bg-input); color:var(--text-main);">
+                        <button class="nav-btn" onclick="addChannelModel('${id}')" style="padding: 6px 12px; font-size:0.85rem;">➕ 添加</button>
+                    </div>
                 </div>
-            </div>
         </div>
     `;
     container.insertAdjacentHTML('beforeend', html);
@@ -459,27 +455,29 @@ function renderAdminModels() {
     il.innerHTML = ''; 
     if(dynamicModels.image) { 
         dynamicModels.image.forEach(m => {
-            il.innerHTML += `<div style="background:var(--bg-input); padding:10px 14px; border-radius:8px; display:flex; justify-content:space-between; align-items:center; border:1px solid var(--border-color);"><span style="font-size:0.95rem; font-weight:500; color:var(--text-main);">${m.name} <span style="color:var(--text-secondary); font-size:0.8rem; margin-left:8px; font-family:monospace; font-weight:normal;">[${m.id}]</span></span><button class="log-action-btn" style="color:var(--danger-color); padding:4px 8px; font-size:1.1rem;" onclick="removeModel('image', '${m.id}')" title="下架此模型">🗑️</button></div>`; 
+            const sourceNames = { gemini: '官方直连', geeknow: 'GeekNow', grsai: 'GRSAI' };
+            const sName = sourceNames[m.source] || m.source || 'GeekNow';
+            il.innerHTML += `<div style="background:var(--bg-input); padding:10px 14px; border-radius:8px; display:flex; justify-content:space-between; align-items:center; border:1px solid var(--border-color); margin-bottom: 6px;"><span style="font-size:0.95rem; font-weight:500; color:var(--text-main);">${m.name} <span style="color:var(--text-secondary); font-size:0.8rem; margin-left:8px; font-family:monospace; font-weight:normal;">[${m.id}] (来源: ${sName})</span></span><button class="log-action-btn" style="color:var(--danger-color); padding:4px 8px; font-size:1.1rem;" onclick="removeModel('image', '${m.id}')" title="下架此模型">🗑️</button></div>`; 
         });
     } 
 }
 
 function addModel(type) { 
     if (type !== 'image') return;
+    const sourceInput = document.getElementById('newImageModelSource');
     const id = document.getElementById('newImageModelId').value.trim(); 
     const name = document.getElementById('newImageModelName').value.trim(); 
+    const source = sourceInput ? sourceInput.value : 'geeknow';
     if(!id || !name) return alert("⚠️ 请填写完整的底层接口标识和展示名称！"); 
     if(dynamicModels.image.find(m => m.id === id)) return alert("⚠️ 该模型标识已存在，无需重复添加！");
     
-    dynamicModels.image.push({id, name}); 
+    dynamicModels.image.push({id, name, source}); 
     document.getElementById('newImageModelId').value = ''; 
     document.getElementById('newImageModelName').value = ''; 
     
     localStorage.setItem('sys_dynamic_models', JSON.stringify(dynamicModels)); 
     renderAdminModels(); 
     loadImageModelsToUI(); 
-    
-    // 强制触发一次云端覆盖保存，确保全站成员都能拉取到最新模型列表
     saveApiSettings();
 }
 
@@ -491,11 +489,8 @@ function removeModel(type, id) {
     localStorage.setItem('sys_dynamic_models', JSON.stringify(dynamicModels)); 
     renderAdminModels(); 
     loadImageModelsToUI(); 
-    
-    // 强制触发一次云端覆盖保存
     saveApiSettings();
 }
-function removeModel(type, id) { const source = type === 'image' ? 'image' : document.getElementById('adminApiFilter').value; if(dynamicModels[source].length <= 1) return alert("至少保留一个模型"); dynamicModels[source] = dynamicModels[source].filter(m => m.id !== id); localStorage.setItem('sys_dynamic_models', JSON.stringify(dynamicModels)); renderAdminModels(); onApiSourceChange(); loadImageModelsToUI(); }
 
 let currentAuditLogsData = [];
 
