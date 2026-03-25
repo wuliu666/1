@@ -280,10 +280,14 @@
 
         <div id="adminTab-logs" class="admin-tab-content" style="display: none;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                <p style="font-size:0.8rem; color:var(--text-secondary); margin: 0;">全站成员操作审计记录（云端永久保存）</p>
-                <div style="display: flex; gap: 10px;">
-                    <button class="nav-btn" onclick="renderAuditLogs()" style="padding: 4px 10px; font-size: 0.8rem;">🔄 刷新数据</button>
-                    <button class="nav-btn" onclick="clearAuditLogs()" style="padding: 4px 10px; font-size: 0.8rem; color: var(--danger-color); border-color: var(--danger-color);">🗑️ 清空日志</button>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <p style="font-size:0.8rem; color:var(--text-secondary); margin: 0; display: none; @media(min-width: 600px){display: block;}">审计记录</p>
+                    <input type="text" id="auditSearchInput" placeholder="🔍 搜索操作人或动作..." style="padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-input); color: var(--text-main); font-size: 0.85rem; width: 180px; outline: none;" onkeyup="filterAuditLogs()">
+                </div>
+                <div style="display: flex; gap: 8px;">
+                    <button class="nav-btn" onclick="renderAuditLogs()" style="padding: 4px 10px; font-size: 0.8rem;">🔄 刷新</button>
+                    <button class="nav-btn" onclick="exportAuditLogsCSV()" style="padding: 4px 10px; font-size: 0.8rem; border-color: #34c759; color: #34c759;">📥 导出CSV</button>
+                    <button class="nav-btn" onclick="clearAuditLogs()" style="padding: 4px 10px; font-size: 0.8rem; color: var(--danger-color); border-color: var(--danger-color);">🗑️ 清空</button>
                 </div>
             </div>
             <div style="max-height:400px; overflow-y:auto; border:1px solid var(--border-color); border-radius:10px; background: var(--bg-container);">

@@ -791,7 +791,7 @@ def get_logs():
     if request.json.get('admin_key') != MASTER_KEY: return jsonify({"error": "无权"}), 403
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
-    c.execute("SELECT user_key, action, datetime(created_at, 'localtime') as time FROM audit_logs ORDER BY id DESC LIMIT 200")
+    c.execute("SELECT user_key, action, datetime(created_at, 'localtime') as time FROM audit_logs ORDER BY id DESC LIMIT 1500")
     rows = [{"user": r[0], "action": r[1], "time": r[2]} for r in c.fetchall()]
     conn.close()
     return jsonify({"success": True, "logs": rows})
