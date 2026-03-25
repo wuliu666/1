@@ -304,3 +304,42 @@ body.dark-theme .admin-copy-btn:hover { background: rgba(255, 255, 255, 0.2); co
 /* --- 文字智能折叠样式 --- */
 .text-content-wrapper { position: relative; transition: all 0.3s ease; }
 .text-collapsed { max-height: 150px; overflow: hidden; mask-image: linear-gradient(to bottom, black 70%, transparent 100%); -webkit-mask-image: linear-gradient(to bottom, black 70%, transparent 100%); }
+
+/* --- 代码块与 Markdown 风格强化 --- */
+pre { 
+    background: rgba(0,0,0,0.05); 
+    padding: 12px; 
+    border-radius: 8px; 
+    overflow-x: auto; 
+    margin: 8px 0; 
+    border: 1px solid var(--border-color); 
+}
+body.dark-theme pre { background: rgba(255,255,255,0.05); }
+code { font-family: monospace; }
+strong { color: var(--text-main); font-weight: 700; }
+
+/* --- 正在深度思考的打字机动态提示样式 --- */
+.typing-indicator {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 4px;
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+    font-weight: 500;
+}
+.typing-indicator span:not(.typing-text) {
+    width: 6px;
+    height: 6px;
+    background-color: var(--text-secondary);
+    border-radius: 50%;
+    display: inline-block;
+    animation: typingBounce 1.4s infinite ease-in-out both;
+}
+.typing-indicator span:nth-child(1) { animation-delay: -0.32s; }
+.typing-indicator span:nth-child(2) { animation-delay: -0.16s; }
+@keyframes typingBounce {
+    0%, 80%, 100% { transform: scale(0); opacity: 0.4; }
+    40% { transform: scale(1); opacity: 1; }
+}
+.typing-text { margin-left: 6px; }

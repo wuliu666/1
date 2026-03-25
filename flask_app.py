@@ -1,6 +1,6 @@
 import sys, os, json, string, random, requests, sqlite3, uuid, base64
 import google.generativeai as genai
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
 
 app = Flask(__name__)
@@ -151,7 +151,7 @@ AGENT_SOUL = """
 - 新场景：第一个镜头必须是全景或中景，建立空间关系。
 - 人物移动：使用跟踪镜头（跟拍、侧移）。
 - 对话：必须使用过肩镜头(OTS)建立轴线，并进行正反打。
-- 情绪点：在情绪顶点切入角色面部或手部特写。
+-情绪点：在情绪顶点切入角色面部或手部特写。
 - 关键物：在道具被揭示时，给予其大特写并保持。
 - 结尾：每个分镜组的最后一个镜头，必须是特写或大特写（表情/关键物），在张力顶点结束。
  
@@ -333,12 +333,10 @@ def change_key():
     if old_key not in keys: return jsonify({"error": "原密钥不存在或已被删除"}), 403
     if new_key in keys: return jsonify({"error": "该新密钥已被其他人占用，请换一个名称"}), 400
         
-    # 1. 更新 JSON 控制面板数据
     user_data = keys.pop(old_key)
     keys[new_key] = user_data
     save_keys(keys)
     
-    # 2. 数据库无缝搬家 (素材、聊天记录、会话Token全部转移到新密钥)
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     c.execute("UPDATE assets SET uploader_key=? WHERE uploader_key=?", (new_key, old_key))
@@ -487,39 +485,86 @@ def save_config():
     save_keys(keys)
     return jsonify({"success": True})
 
+# 🚀 修复点：添加对 is_storyboard 的判断，隔离系统提示词，并引入全流式SSE生成
 @app.route('/chat', methods=['POST'])
 def chat():
     data = request.json
-    pwd, msg, hist = data.get('password'), data.get('message'), data.get('history', [])
+    pwd = data.get('password')
+    msg = data.get('message')
+    hist = data.get('history', [])
     source = data.get('api_source', 'gemini') 
     actual_model_name = data.get('model_type', 'gemini-3-pro-preview' if source == 'geeknow' else 'gemini-3.1-pro') 
+    
+    # 获取前端传入的标识，判断当前聊天是否属于“剧本转分镜”
+    is_storyboard = data.get('is_storyboard', False)
+
     keys = load_keys()
-    if pwd not in keys or keys[pwd].get("is_deleted", False): return jsonify({"error": "请联系管理员~"}), 403
+    if pwd not in keys or keys[pwd].get("is_deleted", False): 
+        return jsonify({"error": "请联系管理员~"}), 403
+        
     global_conf = keys.get('__GLOBAL_CONFIG__', {})
     dynamic_key = global_conf.get(f'{source}_key', '')
-    if not dynamic_key: return jsonify({"error": f"系统暂未配置 [{source}] 通道的 API Key，请联系管理员~"}), 400
+    if not dynamic_key: 
+        return jsonify({"error": f"系统暂未配置 [{source}] 通道的 API Key，请联系管理员~"}), 400
         
-    warning_msg = ""
-    try:
-        if source == "gemini":
-            genai.configure(api_key=dynamic_key)
-            model = genai.GenerativeModel(model_name=actual_model_name, system_instruction=AGENT_SOUL)
-            formatted = [{"role": "user" if m["role"]=="user" else "model", "parts": [m["content"]]} for m in hist]
-            chat_session = model.start_chat(history=formatted)
-            response = chat_session.send_message(msg)
-            return jsonify({"reply": response.text})
-        else:
-            messages = [{"role": "system", "content": AGENT_SOUL}]
-            for m in hist: messages.append({"role": "user" if m["role"]=="user" else "assistant", "content": m["content"]})
-            messages.append({"role": "user", "content": msg})
-            headers = {"Authorization": f"Bearer {dynamic_key}", "Content-Type": "application/json"}
-            payload = {"model": actual_model_name, "messages": messages, "temperature": 0.7}
-            api_url = "https://www.geeknow.top/v1/chat/completions" if source == "geeknow" else "https://api.grsai.com/v1/chat/completions"
-            resp = requests.post(api_url, json=payload, headers=headers, timeout=60)
-            if resp.ok: return jsonify({"reply": resp.json()['choices'][0]['message']['content'] + warning_msg})
-            else: return jsonify({"error": f"中转API报错: {resp.text}"}), 500
-    except Exception as e:
-        return jsonify({"error": f"API 调用失败: {str(e)}"}), 500
+    def generate():
+        try:
+            if source == "gemini":
+                genai.configure(api_key=dynamic_key)
+                # ✨ 如果是分镜，才加上团队设定的系统指令
+                if is_storyboard:
+                    model = genai.GenerativeModel(model_name=actual_model_name, system_instruction=AGENT_SOUL)
+                else:
+                    model = genai.GenerativeModel(model_name=actual_model_name)
+                    
+                formatted = [{"role": "user" if m["role"]=="user" else "model", "parts": [m["content"]]} for m in hist]
+                chat_session = model.start_chat(history=formatted)
+                
+                # 开启流式响应
+                response = chat_session.send_message(msg, stream=True)
+                for chunk in response:
+                    if chunk.text:
+                        yield json.dumps({"reply": chunk.text}) + "\n"
+            else:
+                messages = []
+                # ✨ 如果是分镜，才往头部插入系统消息
+                if is_storyboard:
+                    messages.append({"role": "system", "content": AGENT_SOUL})
+                    
+                for m in hist: 
+                    messages.append({"role": "user" if m["role"]=="user" else "assistant", "content": m["content"]})
+                messages.append({"role": "user", "content": msg})
+                
+                headers = {"Authorization": f"Bearer {dynamic_key}", "Content-Type": "application/json"}
+                # 开启 stream=True
+                payload = {"model": actual_model_name, "messages": messages, "temperature": 0.7, "stream": True}
+                api_url = "https://www.geeknow.top/v1/chat/completions" if source == "geeknow" else "https://api.grsai.com/v1/chat/completions"
+                
+                resp = requests.post(api_url, json=payload, headers=headers, stream=True, timeout=60)
+                if not resp.ok:
+                    yield json.dumps({"error": f"中转API报错: {resp.text}"}) + "\n"
+                    return
+                
+                # 解析 SSE 流式返回
+                for line in resp.iter_lines():
+                    if line:
+                        line_str = line.decode('utf-8')
+                        if line_str.startswith('data: '):
+                            data_str = line_str[6:]
+                            if data_str.strip() == '[DONE]':
+                                break
+                            try:
+                                j = json.loads(data_str)
+                                delta = j['choices'][0].get('delta', {})
+                                if 'content' in delta:
+                                    yield json.dumps({"reply": delta['content']}) + "\n"
+                            except:
+                                pass
+        except Exception as e:
+            yield json.dumps({"error": f"API 调用失败: {str(e)}"}) + "\n"
+
+    # 以流的格式向前端响应
+    return app.response_class(generate(), mimetype='application/x-ndjson')
 
 # ================= 后台密钥管理 =================
 @app.route('/admin/list', methods=['POST'])
