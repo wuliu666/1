@@ -896,7 +896,6 @@ async function sendImageGenMessage() {
     if(rawVal.includes(':::')) { const parts = rawVal.split(':::'); apiSource = parts[0]; modelId = parts[1]; } 
     else { apiSource = document.getElementById('apiSourceSelect') ? document.getElementById('apiSourceSelect').value : 'geeknow'; }
 
-    // 智能翻译：将你 UI 上选中的比例和分辨率，精准翻译为官方要求的必填参数
     const ratioMap = { "智能": "auto", "16:9": "16:9", "21:9": "21:9", "3:2": "3:2", "4:3": "4:3", "1:1": "1:1", "3:4": "3:4", "2:3": "2:3", "9:16": "9:16" };
     const apiRatio = ratioMap[currentSelectedRatioText] || "auto";
     const resMap = { "高清 2K": "2K", "超清 4K": "4K" };
@@ -906,46 +905,109 @@ async function sendImageGenMessage() {
     const negativePrompt = "反向提示词：bad anatomy, traditional chinese characters, gibberish, messy text, garbled characters";
 
     let finalEngineeredPrompt = (msg || '（无提示词）') + systemConstraint + "\n" + negativePrompt;
-    
-    currentUploadedImages.forEach(img => {
-        if (img && img.startsWith('http')) { finalEngineeredPrompt = img + " " + finalEngineeredPrompt; }
-    });
-
-    document.getElementById('imgGenSettingsPanel').style.display = 'none';
-    
-    // 💡 核心修复 1：在清空面板前，立刻把图片数组“备份”保存下来！
     const payloadImages = [...currentUploadedImages];
     
-    chat.messages.push({ role: 'user', content: `【模型】${modelText}\n【尺寸设定】${currentSelectedRatioText} (${w}x${h}) | ${currentSelectedResText}\n【提示词】\n${finalEngineeredPrompt}`, attachedImages: [...payloadImages], timestamp: Date.now() });
+    document.getElementById('imgGenSettingsPanel').style.display = 'none';
+    chat.messages.push({ role: 'user', content: `【模型】${modelText}\n【尺寸设定】${currentSelectedRatioText} (${w}x${h}) | ${currentSelectedResText}\n【提示词】\n${finalEngineeredPrompt}`, attachedImages: payloadImages, timestamp: Date.now() });
     
-    // 清空面板（此时清空不会影响我们备份好的 payloadImages）
     input.value = ''; clearComposer(); renderMessages();
     
     const botMsgIndex = chat.messages.length;
-    chat.messages.push({ role: 'bot', content: '', timestamp: Date.now(), isThinking: true }); renderMessages();
+    chat.messages.push({ role: 'bot', content: '', timestamp: Date.now(), isThinking: false }); 
+    
+    // 💡 植入高颜值动态进度条 UI
+    chat.messages[botMsgIndex].content = `
+        <div style="margin-top: 5px; padding: 12px; background: var(--bg-container); border: 1px solid var(--border-color); border-radius: 10px;">
+            <div style="font-size: 0.85rem; color: var(--text-main); margin-bottom: 10px; font-weight: bold; display: flex; justify-content: space-between;">
+                <span id="gen-status-${botMsgIndex}">🚀 正在与云端引擎建立连接...</span>
+                <span id="gen-percent-${botMsgIndex}" style="color: var(--shen-color);">0%</span>
+            </div>
+            <div style="width: 100%; height: 10px; background: var(--bg-input); border-radius: 5px; overflow: hidden; box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);">
+                <div id="gen-bar-${botMsgIndex}" style="width: 2%; height: 100%; background: linear-gradient(90deg, #00C6ff, #0072ff); transition: width 0.3s ease; border-radius: 5px;"></div>
+            </div>
+        </div>
+    `;
+    renderMessages();
 
     try {
-        // 💡 核心修复 2：将备份好的 payloadImages 通过 reference_images 参数发给后端！
         const res = await fetch(`${API_BASE_URL}/api/generate_image`, {
             method: 'POST', headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ 
-                password: currentUserKey, 
-                prompt: finalEngineeredPrompt, 
-                model: modelId, 
-                size: `${w}x${h}`, 
-                aspectRatio: apiRatio, 
-                imageSize: apiSize, 
-                api_source: apiSource,
-                reference_images: payloadImages 
+                password: currentUserKey, prompt: finalEngineeredPrompt, model: modelId, 
+                size: `${w}x${h}`, aspectRatio: apiRatio, imageSize: apiSize, 
+                api_source: apiSource, reference_images: payloadImages 
             })
         });
-        const d = await res.json(); chat.messages[botMsgIndex].isThinking = false;
-        if (d.success && d.images && d.images.length > 0) {
-            incrementUsage(currentUserKey); addAuditLog(`调用 ${modelText} 生成了图片`); 
-            chat.messages[botMsgIndex].content = '绘制完成：'; chat.messages[botMsgIndex].type = 'image_gallery'; chat.messages[botMsgIndex].images = d.images; 
-        } else { chat.messages[botMsgIndex].content = "❌ 绘制失败: \n" + (d.error || "未知原因"); }
-    } catch(e) { chat.messages[botMsgIndex].isThinking = false; chat.messages[botMsgIndex].content = "❌ 网络异常，无法连接到服务器进行生图。"; }
-    saveChats(); renderMessages();
+
+        // 💡 核心：流式解析器（像接收打字机一样接收进度）
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder('utf-8');
+        let buffer = '';
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            
+            let lines = buffer.split('\n');
+            buffer = lines.pop(); // 保留不完整的截断数据
+            
+            for (let line of lines) {
+                if (line.startsWith('data:')) {
+                    let dataStr = line.substring(5).trim();
+                    if (!dataStr || dataStr === '[DONE]') continue;
+                    try {
+                        let d = JSON.parse(dataStr);
+                        
+                        // 遇到报错，立刻终止
+                        if (d.error) {
+                            chat.messages[botMsgIndex].content = "❌ 绘制失败: \n" + d.error;
+                            renderMessages();
+                            return; 
+                        }
+                        
+                        // 更新进度条
+                        if (d.progress !== undefined) {
+                            const bar = document.getElementById(`gen-bar-${botMsgIndex}`);
+                            const percent = document.getElementById(`gen-percent-${botMsgIndex}`);
+                            const status = document.getElementById(`gen-status-${botMsgIndex}`);
+                            if(bar) bar.style.width = Math.max(2, d.progress) + '%';
+                            if(percent) percent.innerText = d.progress + '%';
+                            if(status) status.innerText = '⏳ 正在努力渲染画面细节...';
+                        }
+                        
+                        // 生成成功！提取图片并展示
+                        if ((d.status === 'succeeded' || d.status === 'SUCCESS') && d.results) {
+                            let imgUrls = d.results.map(r => r.url || r.imageUrl).filter(Boolean);
+                            if (imgUrls.length > 0) {
+                                incrementUsage(currentUserKey);
+                                addAuditLog(`调用 ${modelText} 生成了图片`);
+                                chat.messages[botMsgIndex].content = '✨ 绘制完成：';
+                                chat.messages[botMsgIndex].type = 'image_gallery';
+                                chat.messages[botMsgIndex].images = imgUrls;
+                                renderMessages();
+                                return;
+                            }
+                        } else if (d.status === 'failed' || d.status === 'FAIL') {
+                            chat.messages[botMsgIndex].content = "❌ 绘制失败: \n" + (d.failure_reason || d.failReason || "云端异常拦截");
+                            renderMessages();
+                            return;
+                        }
+                    } catch(e) { console.log("进度解析忽略的小错误", e); }
+                }
+            }
+        }
+        
+        // 如果数据流走完还没拿到图片（极端情况防卡死）
+        if (chat.messages[botMsgIndex].type !== 'image_gallery') {
+            chat.messages[botMsgIndex].content = "❌ 数据流已结束，但未能获取到图片。";
+            renderMessages();
+        }
+
+    } catch(e) { 
+        chat.messages[botMsgIndex].content = "❌ 网络连接中断！请检查您的网络或后端服务。"; 
+        renderMessages();
+    }
 }
 
 
