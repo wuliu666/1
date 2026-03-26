@@ -920,10 +920,14 @@ async function sendImageGenMessage() {
     chat.messages.push({ role: 'bot', content: '', timestamp: Date.now(), isThinking: true }); renderMessages();
 
     try {
-        // 关键改动：向后端抛出额外的 aspectRatio 和 imageSize 属性
+        // 关键改动：把前端的垫图数组一并发送给后端
         const res = await fetch(`${API_BASE_URL}/api/generate_image`, {
             method: 'POST', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ password: currentUserKey, prompt: finalEngineeredPrompt, model: modelId, size: `${w}x${h}`, aspectRatio: apiRatio, imageSize: apiSize, api_source: apiSource })
+            body: JSON.stringify({ 
+                password: currentUserKey, prompt: finalEngineeredPrompt, model: modelId, 
+                size: `${w}x${h}`, aspectRatio: apiRatio, imageSize: apiSize, 
+                api_source: apiSource, reference_images: currentUploadedImages 
+            })
         });
         const d = await res.json(); chat.messages[botMsgIndex].isThinking = false;
         if (d.success && d.images && d.images.length > 0) {
@@ -933,7 +937,7 @@ async function sendImageGenMessage() {
     } catch(e) { chat.messages[botMsgIndex].isThinking = false; chat.messages[botMsgIndex].content = "❌ 网络异常，无法连接到服务器进行生图。"; }
     saveChats(); renderMessages();
 }
-}
+
 
 function downloadSingleImage(base64Data, index) { const link = document.createElement('a'); link.href = base64Data; link.download = `Img_${index+1}.png`; link.click(); }
 function downloadGalleryZip(msgIndex) {

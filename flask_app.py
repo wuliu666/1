@@ -643,10 +643,11 @@ def generate_image():
     prompt = data.get('prompt')
     model = data.get('model', 'dall-e-3')
     size = data.get('size', '1024x1024')
-    # 接收前端新传来的准确参数
+    # 接收前端新传来的准确参数与垫图数组
     api_ratio = data.get('aspectRatio', 'auto')
     api_size = data.get('imageSize', '1K')
-    source = data.get('api_source', 'geeknow') 
+    reference_images = data.get('reference_images', [])
+    source = data.get('api_source', 'geeknow')
 
     keys = load_keys()
     if pwd not in keys or keys[pwd].get("is_deleted", False): 
@@ -680,12 +681,17 @@ def generate_image():
         # ================= 专属：Nano Banana 拦截阀 =================
         if "nano" in model.lower():
             draw_url = f"{base_url}/draw/nano-banana"
-            urls = []
+            
+            # 官方 urls 完美支持 Base64，直接把前端发来的图片放进去
+            urls = reference_images.copy()
             clean_prompt = prompt
+            
+            # 兼容老逻辑：如果是写在提示词里的网络 http 链接，也摘出来放进 urls
             parts = prompt.split(" ")
             for part in parts:
                 if part.startswith("http"):
-                    urls.append(part)
+                    if part not in urls:
+                        urls.append(part)
                     clean_prompt = clean_prompt.replace(part, "", 1).strip()
             
             nano_payload = {
@@ -694,7 +700,8 @@ def generate_image():
                 "urls": urls,
                 "aspectRatio": api_ratio,
                 "imageSize": api_size,
-                "shutProgress": False
+                "webHook": "-1",         # 必须是大写的 H，强制让它立即返回任务 ID 供轮询
+                "shutProgress": True     # 必须是 True，屏蔽多余进度推送
             }
             
             nr = requests.post(draw_url, json=nano_payload, headers=headers, timeout=120)
