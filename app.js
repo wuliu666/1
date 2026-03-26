@@ -912,21 +912,31 @@ async function sendImageGenMessage() {
     });
 
     document.getElementById('imgGenSettingsPanel').style.display = 'none';
-    chat.messages.push({ role: 'user', content: `【模型】${modelText}\n【尺寸设定】${currentSelectedRatioText} (${w}x${h}) | ${currentSelectedResText}\n【提示词】\n${finalEngineeredPrompt}`, attachedImages: [...currentUploadedImages], timestamp: Date.now() });
     
+    // 💡 核心修复 1：在清空面板前，立刻把图片数组“备份”保存下来！
+    const payloadImages = [...currentUploadedImages];
+    
+    chat.messages.push({ role: 'user', content: `【模型】${modelText}\n【尺寸设定】${currentSelectedRatioText} (${w}x${h}) | ${currentSelectedResText}\n【提示词】\n${finalEngineeredPrompt}`, attachedImages: [...payloadImages], timestamp: Date.now() });
+    
+    // 清空面板（此时清空不会影响我们备份好的 payloadImages）
     input.value = ''; clearComposer(); renderMessages();
     
     const botMsgIndex = chat.messages.length;
     chat.messages.push({ role: 'bot', content: '', timestamp: Date.now(), isThinking: true }); renderMessages();
 
     try {
-        // 关键修复：把前端收集到的本地图片数组 reference_images 一并发送给后端
+        // 💡 核心修复 2：将备份好的 payloadImages 通过 reference_images 参数发给后端！
         const res = await fetch(`${API_BASE_URL}/api/generate_image`, {
             method: 'POST', headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ 
-                password: currentUserKey, prompt: finalEngineeredPrompt, model: modelId, 
-                size: `${w}x${h}`, aspectRatio: apiRatio, imageSize: apiSize, 
-                api_source: apiSource, reference_images: currentUploadedImages 
+                password: currentUserKey, 
+                prompt: finalEngineeredPrompt, 
+                model: modelId, 
+                size: `${w}x${h}`, 
+                aspectRatio: apiRatio, 
+                imageSize: apiSize, 
+                api_source: apiSource,
+                reference_images: payloadImages 
             })
         });
         const d = await res.json(); chat.messages[botMsgIndex].isThinking = false;

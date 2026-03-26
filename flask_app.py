@@ -692,7 +692,6 @@ def generate_image():
                         urls.append(part)
                     clean_prompt = clean_prompt.replace(part, "", 1).strip()
             
-            # 严格遵照文档：填入 webHook 和 shutProgress
             nano_payload = {
                 "model": model,
                 "prompt": clean_prompt,
@@ -705,55 +704,57 @@ def generate_image():
             
             nr = requests.post(draw_url, json=nano_payload, headers=headers, timeout=120)
             if nr.ok:
-                text_resp = nr.text
-                if "data:" in text_resp:
-                    import json
-                    for line in text_resp.splitlines():
-                        if line.startswith("data:"):
-                            line_data = line[5:].strip()
-                            if not line_data or line_data == "[DONE]": continue
+                try:
+                    res_data = nr.json()
+                except Exception as e:
+                    return jsonify({"success": False, "error": f"API返回了非标准数据: {nr.text[:100]}"}), 400
+
+                # 1. 检查是否直接在当次请求就返回了成功结果
+                task_data = res_data.get("data", res_data)
+                if isinstance(task_data, dict):
+                    if task_data.get("status") in ["succeeded", "SUCCESS"] and task_data.get("results"):
+                        return jsonify({"success": True, "images": [task_data["results"][0]["url"]]})
+                    elif task_data.get("status") in ["failed", "FAIL"]:
+                        return jsonify({"success": False, "error": task_data.get("failure_reason", task_data.get("failReason", "云端生成失败"))}), 400
+
+                # 2. 提取任务 ID 准备轮询
+                task_id = None
+                if isinstance(task_data, dict) and "id" in task_data:
+                    task_id = task_data["id"]
+                elif isinstance(task_data, str):
+                    task_id = task_data
+
+                if task_id:
+                    import time
+                    poll_url = f"{base_url}/draw/result"
+                    for _ in range(60):
+                        time.sleep(2)
+                        
+                        # 核心修复点：严格遵照文档，只传 id 参数，千万不要传多余参数惹怒 API
+                        pr = requests.post(poll_url, json={"id": task_id}, headers=headers, timeout=10)
+                        
+                        if pr.ok:
                             try:
-                                p_data = json.loads(line_data)
-                                if p_data.get("status") == "succeeded" and p_data.get("results"):
-                                    return jsonify({"success": True, "images": [p_data["results"][0]["url"]]})
-                                elif p_data.get("status") == "failed":
-                                    return jsonify({"success": False, "error": p_data.get("failure_reason", "生成失败")}), 400
-                            except: pass
-                    return jsonify({"success": False, "error": "流式结束但未提取到结果"}), 400
-                else:
-                    import json
-                    try:
-                        res_data = nr.json()
-                        # 兼容处理：如果它像你遇到的那样，把结果直接拍在了最外层
-                        task_data = res_data.get("data", res_data)
-                        if task_data.get("status") == "succeeded" and task_data.get("results"):
-                            return jsonify({"success": True, "images": [task_data["results"][0]["url"]]})
-                        elif task_data.get("status") == "failed":
-                            return jsonify({"success": False, "error": task_data.get("failure_reason", "生成失败")}), 400
-                        # 正常流程：走任务队列轮询
-                        elif res_data.get("code") in [0, 1] and res_data.get("data"):
-                            task_id = res_data["data"]
-                            if isinstance(task_id, dict): task_id = task_id.get("id", task_id.get("taskId"))
-                            import time
-                            poll_url = f"{base_url}/draw/result"
-                            for _ in range(60):
-                                time.sleep(2)
-                                pr = requests.post(poll_url, json={"id": task_id, "action": "result"}, headers=headers, timeout=10)
-                                if pr.ok:
-                                    p_data = pr.json()
-                                    # 关键修复点：不管它是规范的包在 data 里的，还是直接拍在外面的，通杀！
-                                    p_task_data = p_data.get("data", p_data)
-                                    st = p_task_data.get("status")
-                                    if st in ["succeeded", "SUCCESS"]:
-                                        imgs = p_task_data.get("results", [{"url": p_task_data.get("imageUrl")}])
+                                p_data = pr.json()
+                                p_task_data = p_data.get("data", p_data)
+                                st = p_task_data.get("status")
+                                if st in ["succeeded", "SUCCESS"]:
+                                    imgs = p_task_data.get("results", [{"url": p_task_data.get("imageUrl")}])
+                                    if imgs and len(imgs) > 0:
                                         return jsonify({"success": True, "images": [imgs[0].get("url")]})
-                                    elif st in ["failed", "FAIL"]:
-                                        return jsonify({"success": False, "error": p_task_data.get("failReason", p_task_data.get("failure_reason", "云端失败"))}), 400
-                            return jsonify({"success": False, "error": "任务轮询超时（已等待 120 秒）"}), 400
+                                elif st in ["failed", "FAIL"]:
+                                    err = p_task_data.get("failure_reason", p_task_data.get("failReason", "云端失败"))
+                                    return jsonify({"success": False, "error": err}), 400
+                                # 如果状态是 running/submitted，则静默忽略，进入下一次循环等待
+                            except Exception as pe:
+                                return jsonify({"success": False, "error": f"轮询解析异常: {str(pe)}"}), 400
                         else:
-                            return jsonify({"success": False, "error": f"未知的API响应格式: {res_data}"}), 400
-                    except Exception as e:
-                        return jsonify({"success": False, "error": f"JSON解析出错: {str(e)}"}), 400
+                            # 核心修复点：如果轮询接口本身报错（被拒），立刻终止并返回给前端，绝对不要死等！
+                            return jsonify({"success": False, "error": f"轮询请求被云端拒绝 ({pr.status_code}): {pr.text[:150]}"}), 400
+                            
+                    return jsonify({"success": False, "error": "任务轮询超时（已等待 120 秒）"}), 400
+                else:
+                    return jsonify({"success": False, "error": f"云端未下发任务ID: {res_data}"}), 400
             else:
                 return jsonify({"success": False, "error": f"Nano接口报错 ({nr.status_code}): {nr.text[:150]}"}), 400
 
