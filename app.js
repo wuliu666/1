@@ -9,7 +9,7 @@ const PERSONAL_ASSET_ID = 'PERSONAL_ASSET_LIBRARY';
 let currentUserKey = null; let currentSessionToken = null; let heartbeatInterval = null;
 let currentUserName = "Creator"; let isAdmin = false; 
 let chats = []; let currentChatId = null; let renamingChatId = null; let currentTab = 'all'; let pendingConfirmCallback = null;
-let currentUploadedImageBase64 = null; let currentSelectedRatioText = '16:9'; let currentSelectedResText = '高清 2K';
+let currentUploadedImages = []; let currentSelectedRatioText = '16:9'; let currentSelectedResText = '高清 2K';
 let teamAssets = []; let personalAssets = []; let currentAssetFilter = 'all'; let currentLibraryMode = 'team'; 
 let editingAssetId = null; let isBulkMode = false; let selectedAssetIds = new Set();
 
@@ -769,7 +769,10 @@ function deleteAsset(id) {
 function useAssetInGen(assetId) { const sourceArray = currentLibraryMode === 'team' ? teamAssets : personalAssets; const asset = sourceArray.find(a => a.id === assetId); if (!asset) return; extractAndGenerateImage(asset.prompt || '', API_BASE_URL + asset.image); }
 function extractAndGenerateImage(promptText, referenceImage = null) {
     switchChat(IMAGE_GEN_ID); 
-    if (referenceImage) { currentUploadedImageBase64 = referenceImage; const wrap = document.getElementById('imgUploadPreview'); wrap.style.display = 'inline-block'; wrap.innerHTML = `<div class="img-preview-wrap"><img src="${currentUploadedImageBase64}" class="img-preview-thumb"><div class="img-preview-close" onclick="clearGenImage()">×</div></div>`; }
+    if (referenceImage) { 
+        currentUploadedImages = [referenceImage]; 
+        renderUploadPreview();
+    }
     document.getElementById('imgGenInput').value = promptText.replace(/[【】🎬]/g, '').trim(); 
 }
 
@@ -810,13 +813,39 @@ function autoResizeTextarea(el) { el.style.height = '36px'; el.style.height = Ma
 // 拖拽上传引擎
 function handleComposerDrop(e) { 
     const files = e.dataTransfer.files; 
-    if(files && files.length > 0 && files[0].type.startsWith('image/')) { 
-        const input = document.getElementById('imgGenUpload'); input.files = files; previewGenImage(input); 
-    } 
+    if(files && files.length > 0) { processImageFiles(files); } 
 }
 // 图片预览（支持点击看大图）与清除系统
-function previewGenImage(input) { if (input.files && input.files[0]) { const reader = new FileReader(); reader.onload = function(e) { currentUploadedImageBase64 = e.target.result; const wrap = document.getElementById('imgUploadPreview'); wrap.style.display = 'inline-block'; wrap.innerHTML = `<div class="img-preview-wrap"><img src="${currentUploadedImageBase64}" class="img-preview-thumb" style="cursor:pointer;" onclick="openFullImageFromBase64('${currentUploadedImageBase64}')" title="点击放大查看"><div class="img-preview-close" onclick="clearGenImage()">×</div></div>`; }; reader.readAsDataURL(input.files[0]); } }
-function clearGenImage() { currentUploadedImageBase64 = null; const u = document.getElementById('imgGenUpload'); if(u) u.value = ''; document.getElementById('imgUploadPreview').style.display = 'none'; document.getElementById('imgUploadPreview').innerHTML = ''; }
+function previewGenImage(input) { if (input.files && input.files.length > 0) { processImageFiles(input.files); input.value = ''; } }
+function processImageFiles(files) {
+    let validFiles = Array.from(files).filter(f => f.type.startsWith('image/'));
+    if (currentUploadedImages.length + validFiles.length > 10) {
+        alert("⚠️ 最多只能上传 10 张图片作为参考！");
+        validFiles = validFiles.slice(0, 10 - currentUploadedImages.length);
+    }
+    validFiles.forEach(file => {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            currentUploadedImages.push(e.target.result);
+            renderUploadPreview();
+        };
+        reader.readAsDataURL(file);
+    });
+}
+function renderUploadPreview() {
+    const wrap = document.getElementById('imgUploadPreview');
+    if (currentUploadedImages.length === 0) {
+        wrap.style.display = 'none'; wrap.innerHTML = ''; return;
+    }
+    wrap.style.display = 'inline-flex'; wrap.style.flexWrap = 'wrap'; wrap.style.gap = '8px';
+    let html = '';
+    currentUploadedImages.forEach((imgBase64, index) => {
+        html += `<div class="img-preview-wrap"><img src="${imgBase64}" class="img-preview-thumb" style="cursor:pointer;" onclick="openFullImageFromBase64('${imgBase64}')" title="点击放大查看"><div class="img-preview-close" onclick="removeUploadedImage(${index})">×</div></div>`;
+    });
+    wrap.innerHTML = html;
+}
+function removeUploadedImage(index) { currentUploadedImages.splice(index, 1); renderUploadPreview(); }
+function clearGenImage() { currentUploadedImages = []; const u = document.getElementById('imgGenUpload'); if(u) u.value = ''; renderUploadPreview(); }
 function clearComposer() { clearGenImage(); const input = document.getElementById('imgGenInput'); if(input) { input.value = ''; autoResizeTextarea(input); } }
 function openFullImageFromBase64(base64Data) { const modal = document.getElementById('imageViewerModal'); const canvas = document.getElementById('fullViewCanvas'); const ctx = canvas.getContext('2d'); const img = new Image(); img.onload = () => { canvas.width = img.width; canvas.height = img.height; ctx.drawImage(img, 0, 0); modal.classList.add('show'); }; img.src = base64Data; }
 
@@ -831,10 +860,14 @@ function applyImageGenPrompt(msgIndex) {
         document.getElementById('imgGenInput').value = extracted;
     } else { document.getElementById('imgGenInput').value = promptText; }
     
-    if(msg.attachedImage) {
-        currentUploadedImageBase64 = msg.attachedImage; const wrap = document.getElementById('imgUploadPreview'); wrap.style.display = 'inline-block'; 
-        wrap.innerHTML = `<div class="img-preview-wrap"><img src="${currentUploadedImageBase64}" class="img-preview-thumb" style="cursor:pointer;" onclick="openFullImageFromBase64('${currentUploadedImageBase64}')" title="点击放大"><div class="img-preview-close" onclick="clearGenImage()">×</div></div>`;
+    currentUploadedImages = [];
+    if(msg.attachedImages && msg.attachedImages.length > 0) {
+        currentUploadedImages = [...msg.attachedImages];
+    } else if(msg.attachedImage) {
+        currentUploadedImages = [msg.attachedImage];
     }
+    renderUploadPreview();
+    
     const inputEl = document.getElementById('imgGenInput'); autoResizeTextarea(inputEl); inputEl.focus(); showToast("✅ 已成功抓取该轮参数至输入区");
 }
 
@@ -851,7 +884,7 @@ async function sendImageGenMessage() {
 
     const input = document.getElementById('userInput'); let msg = input.value.trim();
     if(!msg) { const altInput = document.getElementById('imgGenInput'); if(altInput) msg = altInput.value.trim(); }
-    if(!msg && !currentUploadedImageBase64) return;
+    if(!msg && currentUploadedImages.length === 0) return;
     
     const chat = chats.find(c => c.id === IMAGE_GEN_ID) || chats.find(c => c.id === currentChatId); if(!chat) return;
     
@@ -867,10 +900,15 @@ async function sendImageGenMessage() {
     const negativePrompt = "反向提示词：bad anatomy, traditional chinese characters, gibberish, messy text, garbled characters";
 
     let finalEngineeredPrompt = (msg || '（无提示词）') + systemConstraint + "\n" + negativePrompt;
-    if (currentUploadedImageBase64 && currentUploadedImageBase64.startsWith('http')) { finalEngineeredPrompt = currentUploadedImageBase64 + " " + finalEngineeredPrompt; }
+    
+    // 若来自素材库复用，将所有的 HTTP 图片链接追加到提示词里，供 Midjourney 等引擎作为垫图参考
+    currentUploadedImages.forEach(img => {
+        if (img && img.startsWith('http')) { finalEngineeredPrompt = img + " " + finalEngineeredPrompt; }
+    });
 
     document.getElementById('imgGenSettingsPanel').style.display = 'none';
-    chat.messages.push({ role: 'user', content: `【模型】${modelText}\n【尺寸设定】${currentSelectedRatioText} (${w}x${h}) | ${currentSelectedResText}\n【提示词】\n${finalEngineeredPrompt}`, attachedImage: currentUploadedImageBase64, timestamp: Date.now() });
+    // 保存至 attachedImages 数组中
+    chat.messages.push({ role: 'user', content: `【模型】${modelText}\n【尺寸设定】${currentSelectedRatioText} (${w}x${h}) | ${currentSelectedResText}\n【提示词】\n${finalEngineeredPrompt}`, attachedImages: [...currentUploadedImages], timestamp: Date.now() });
     
     // 发送后自动清空面板
     input.value = ''; clearComposer(); renderMessages();
@@ -1023,7 +1061,16 @@ function renderMessages() {
         
         contentWrapper.appendChild(contentDiv);
         
-        if (m.role === 'user' && m.attachedImage) { const imgWrap = document.createElement('div'); imgWrap.style.marginTop = '10px'; imgWrap.innerHTML = `<img src="${m.attachedImage}" style="max-width: 120px; border-radius: 8px; border: 2px solid rgba(255,255,255,0.3);">`; contentWrapper.appendChild(imgWrap); }
+        if (m.role === 'user') {
+            const imgs = m.attachedImages || (m.attachedImage ? [m.attachedImage] : []);
+            if (imgs.length > 0) {
+                const imgWrap = document.createElement('div'); imgWrap.style.marginTop = '10px'; imgWrap.style.display = 'flex'; imgWrap.style.flexWrap = 'wrap'; imgWrap.style.gap = '8px';
+                imgs.forEach(imgSrc => {
+                    imgWrap.innerHTML += `<img src="${imgSrc}" style="max-width: 120px; border-radius: 8px; border: 2px solid rgba(255,255,255,0.3); cursor:pointer;" onclick="openFullImageFromBase64('${imgSrc}')">`;
+                });
+                contentWrapper.appendChild(imgWrap);
+            }
+        }
        if (m.type === 'image_gallery' && m.images) {
             const galleryDiv = document.createElement('div'); galleryDiv.className = 'gallery-container';
             m.images.forEach((imgBase64, imgIndex) => { 
