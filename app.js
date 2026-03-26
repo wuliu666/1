@@ -896,30 +896,34 @@ async function sendImageGenMessage() {
     if(rawVal.includes(':::')) { const parts = rawVal.split(':::'); apiSource = parts[0]; modelId = parts[1]; } 
     else { apiSource = document.getElementById('apiSourceSelect') ? document.getElementById('apiSourceSelect').value : 'geeknow'; }
 
+    // 智能翻译：将你 UI 上选中的比例和分辨率，精准翻译为官方要求的必填参数
+    const ratioMap = { "智能": "auto", "16:9": "16:9", "21:9": "21:9", "3:2": "3:2", "4:3": "4:3", "1:1": "1:1", "3:4": "3:4", "2:3": "2:3", "9:16": "9:16" };
+    const apiRatio = ratioMap[currentSelectedRatioText] || "auto";
+    const resMap = { "高清 2K": "2K", "超清 4K": "4K" };
+    const apiSize = resMap[currentSelectedResText] || "1K";
+
     const systemConstraint = " 【强制底层约束：重新使用大模型生成，漫画或画面中的文本必须全部使用简体中文，不要有乱码，不要有繁体字】";
     const negativePrompt = "反向提示词：bad anatomy, traditional chinese characters, gibberish, messy text, garbled characters";
 
     let finalEngineeredPrompt = (msg || '（无提示词）') + systemConstraint + "\n" + negativePrompt;
     
-    // 若来自素材库复用，将所有的 HTTP 图片链接追加到提示词里，供 Midjourney 等引擎作为垫图参考
     currentUploadedImages.forEach(img => {
         if (img && img.startsWith('http')) { finalEngineeredPrompt = img + " " + finalEngineeredPrompt; }
     });
 
     document.getElementById('imgGenSettingsPanel').style.display = 'none';
-    // 保存至 attachedImages 数组中
     chat.messages.push({ role: 'user', content: `【模型】${modelText}\n【尺寸设定】${currentSelectedRatioText} (${w}x${h}) | ${currentSelectedResText}\n【提示词】\n${finalEngineeredPrompt}`, attachedImages: [...currentUploadedImages], timestamp: Date.now() });
     
-    // 发送后自动清空面板
     input.value = ''; clearComposer(); renderMessages();
     
     const botMsgIndex = chat.messages.length;
     chat.messages.push({ role: 'bot', content: '', timestamp: Date.now(), isThinking: true }); renderMessages();
 
     try {
+        // 关键改动：向后端抛出额外的 aspectRatio 和 imageSize 属性
         const res = await fetch(`${API_BASE_URL}/api/generate_image`, {
             method: 'POST', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ password: currentUserKey, prompt: finalEngineeredPrompt, model: modelId, size: `${w}x${h}`, api_source: apiSource })
+            body: JSON.stringify({ password: currentUserKey, prompt: finalEngineeredPrompt, model: modelId, size: `${w}x${h}`, aspectRatio: apiRatio, imageSize: apiSize, api_source: apiSource })
         });
         const d = await res.json(); chat.messages[botMsgIndex].isThinking = false;
         if (d.success && d.images && d.images.length > 0) {
@@ -928,6 +932,7 @@ async function sendImageGenMessage() {
         } else { chat.messages[botMsgIndex].content = "❌ 绘制失败: \n" + (d.error || "未知原因"); }
     } catch(e) { chat.messages[botMsgIndex].isThinking = false; chat.messages[botMsgIndex].content = "❌ 网络异常，无法连接到服务器进行生图。"; }
     saveChats(); renderMessages();
+}
 }
 
 function downloadSingleImage(base64Data, index) { const link = document.createElement('a'); link.href = base64Data; link.download = `Img_${index+1}.png`; link.click(); }

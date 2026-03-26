@@ -16,7 +16,7 @@
         "geeknow_enabled": false,
         "geeknow_url": "https://www.geeknow.top/v1",
         "geeknow_key": "",
-        "grsai_enabled": false,
+        "grsai_enabled": true,
         "grsai_url": "https://api.grsai.com/v1",
         "grsai_key": "sk-a3a9583f4cc54dc3a7404d17c4800c22",
         "custom_channels": [],

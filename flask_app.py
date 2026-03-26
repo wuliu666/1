@@ -643,6 +643,9 @@ def generate_image():
     prompt = data.get('prompt')
     model = data.get('model', 'dall-e-3')
     size = data.get('size', '1024x1024')
+    # 接收前端新传来的准确参数
+    api_ratio = data.get('aspectRatio', 'auto')
+    api_size = data.get('imageSize', '1K')
     source = data.get('api_source', 'geeknow') 
 
     keys = load_keys()
@@ -673,6 +676,80 @@ def generate_image():
 
     try:
         headers = {"Authorization": f"Bearer {dynamic_key}", "Content-Type": "application/json"}
+        
+        # ================= 专属：Nano Banana 拦截阀 =================
+        if "nano" in model.lower():
+            draw_url = f"{base_url}/draw/nano-banana"
+            urls = []
+            clean_prompt = prompt
+            parts = prompt.split(" ")
+            for part in parts:
+                if part.startswith("http"):
+                    urls.append(part)
+                    clean_prompt = clean_prompt.replace(part, "", 1).strip()
+            
+            nano_payload = {
+                "model": model,
+                "prompt": clean_prompt,
+                "urls": urls,
+                "aspectRatio": api_ratio,
+                "imageSize": api_size,
+                "shutProgress": False
+            }
+            
+            nr = requests.post(draw_url, json=nano_payload, headers=headers, timeout=120)
+            if nr.ok:
+                text_resp = nr.text
+                if "data:" in text_resp:
+                    # 如果 GRSAI 跑的是 SSE 流式返回
+                    import json
+                    for line in text_resp.splitlines():
+                        if line.startswith("data:"):
+                            line_data = line[5:].strip()
+                            if not line_data or line_data == "[DONE]": continue
+                            try:
+                                p_data = json.loads(line_data)
+                                if p_data.get("status") == "succeeded" and p_data.get("results"):
+                                    return jsonify({"success": True, "images": [p_data["results"][0]["url"]]})
+                                elif p_data.get("status") == "failed":
+                                    return jsonify({"success": False, "error": p_data.get("failure_reason", "生成失败")}), 400
+                            except: pass
+                    return jsonify({"success": False, "error": "流式结束但未提取到结果"}), 400
+                else:
+                    # 如果是纯 JSON 且直接在里面返回了数据（你遇到的情况）
+                    import json
+                    try:
+                        res_data = nr.json()
+                        if res_data.get("status") == "succeeded" and res_data.get("results"):
+                            return jsonify({"success": True, "images": [res_data["results"][0]["url"]]})
+                        elif res_data.get("status") == "failed":
+                            return jsonify({"success": False, "error": res_data.get("failure_reason", "生成失败")}), 400
+                        # 如果它还是走了任务队列
+                        elif res_data.get("code") in [0, 1] and res_data.get("data"):
+                            task_id = res_data["data"]
+                            if isinstance(task_id, dict): task_id = task_id.get("id", task_id.get("taskId"))
+                            import time
+                            poll_url = f"{base_url}/draw/result"
+                            for _ in range(60):
+                                time.sleep(2)
+                                pr = requests.post(poll_url, json={"id": task_id, "action": "result"}, headers=headers, timeout=10)
+                                if pr.ok:
+                                    p_data = pr.json()
+                                    st = p_data.get("data", {}).get("status")
+                                    if st in ["succeeded", "SUCCESS"]:
+                                        imgs = p_data.get("data", {}).get("results", [{"url": p_data.get("data", {}).get("imageUrl")}])
+                                        return jsonify({"success": True, "images": [imgs[0].get("url")]})
+                                    elif st in ["failed", "FAIL"]:
+                                        return jsonify({"success": False, "error": p_data.get("data", {}).get("failReason", "云端失败")}), 400
+                            return jsonify({"success": False, "error": "任务轮询超时"}), 400
+                        else:
+                            return jsonify({"success": False, "error": f"未知的API响应格式: {res_data}"}), 400
+                    except Exception as e:
+                        return jsonify({"success": False, "error": f"JSON解析出错: {str(e)}"}), 400
+            else:
+                return jsonify({"success": False, "error": f"Nano接口报错 ({nr.status_code}): {nr.text[:150]}"}), 400
+
+        # ================= 标准 OpenAI 兼容协议 (DALL-E 等走这里) =================
         payload = {
             "model": model,
             "prompt": prompt,
@@ -697,9 +774,8 @@ def generate_image():
             else:
                 return jsonify({"success": False, "error": "通道返回成功，但未返回图片数据"}), 400
         
-        # --- 【核心新增：智能降级容灾机制】 ---
-        # 如果通道不支持标准的生图接口 (报 404)，系统自动降级拦截，改用文本聊天接口请求生图！
-        if r.status_code == 404:
+        # --- 智能降级容灾机制 ---
+        if r.status_code == 404 or r.status_code == 405:
             import re
             chat_url = f"{base_url}/chat/completions"
             chat_payload = {
@@ -711,25 +787,37 @@ def generate_image():
             
             if cr.ok:
                 try:
-                    content = cr.json()['choices'][0]['message']['content']
+                    res_json = cr.json()
+                    if 'choices' not in res_json:
+                        err_msg = cr.text[:200]
+                        if 'error' in res_json:
+                            err_msg = res_json['error'].get('message', str(res_json['error']))
+                        elif 'msg' in res_json:
+                            err_msg = res_json['msg']
+                        return jsonify({"success": False, "error": f"降级请求被拒，真实报错：{err_msg}"}), 400
+
+                    content = res_json['choices'][0]['message']['content']
                     found_urls = []
-                    # 使用正则暴力提取返回文本中的所有图片 URL (兼容 Markdown 和 原生链接)
                     for match in re.findall(r'(?:!\[.*?\]\((http[^\)]+)\))|(http[s]?://[^\s"\'\]\)]+)', content):
                         found_urls.append(match[0] if match[0] else match[1])
                     
                     if found_urls:
                         return jsonify({"success": True, "images": found_urls})
                     else:
-                        return jsonify({"success": False, "error": f"系统降级调用聊天接口成功，但对方未返回图片链接。返回内容: {content[:100]}"}), 400
+                        return jsonify({"success": False, "error": f"降级成功但未返回图片。AI回复: {content[:100]}"}), 400
                 except Exception as ce:
-                    return jsonify({"success": False, "error": f"降级解析失败: {str(ce)}"}), 400
+                    return jsonify({"success": False, "error": f"降级解析失败: {str(ce)} | 返回: {cr.text[:150]}"}), 400
             else:
-                return jsonify({"success": False, "error": f"系统尝试降级请求也失败了 ({cr.status_code}): {cr.text[:100]}"}), 400
+                try: err_msg = cr.json().get('error', {}).get('message', cr.text[:100])
+                except: err_msg = cr.text[:100]
+                return jsonify({"success": False, "error": f"降级请求也失败 ({cr.status_code}): {err_msg}"}), 400
         
-        return jsonify({"success": False, "error": f"通道接口报错 ({r.status_code}): {r.text[:200]}"}), 400
+        try: err_msg = r.json().get('error', {}).get('message', r.text[:150])
+        except: err_msg = r.text[:150]
+        return jsonify({"success": False, "error": f"标准通道报错 ({r.status_code}): {err_msg}"}), 400
 
     except Exception as e:
-        return jsonify({"success": False, "error": f"请求异常: {str(e)[:100]}"}), 500
+        return jsonify({"success": False, "error": f"服务器请求异常: {str(e)[:100]}"}), 500
 
 @app.route('/chat', methods=['POST'])
 def chat():
