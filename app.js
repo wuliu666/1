@@ -920,7 +920,7 @@ async function sendImageGenMessage() {
     chat.messages.push({ role: 'bot', content: '', timestamp: Date.now(), isThinking: true }); renderMessages();
 
     try {
-        // 关键改动：把前端的垫图数组一并发送给后端
+        // 关键修复：把前端收集到的本地图片数组 reference_images 一并发送给后端
         const res = await fetch(`${API_BASE_URL}/api/generate_image`, {
             method: 'POST', headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ 

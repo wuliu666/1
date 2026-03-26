@@ -682,11 +682,9 @@ def generate_image():
         if "nano" in model.lower():
             draw_url = f"{base_url}/draw/nano-banana"
             
-            # 官方 urls 完美支持 Base64，直接把前端发来的图片放进去
             urls = reference_images.copy()
             clean_prompt = prompt
             
-            # 兼容老逻辑：如果是写在提示词里的网络 http 链接，也摘出来放进 urls
             parts = prompt.split(" ")
             for part in parts:
                 if part.startswith("http"):
@@ -694,21 +692,21 @@ def generate_image():
                         urls.append(part)
                     clean_prompt = clean_prompt.replace(part, "", 1).strip()
             
+            # 严格遵照文档：填入 webHook 和 shutProgress
             nano_payload = {
                 "model": model,
                 "prompt": clean_prompt,
                 "urls": urls,
                 "aspectRatio": api_ratio,
                 "imageSize": api_size,
-                "webHook": "-1",         # 必须是大写的 H，强制让它立即返回任务 ID 供轮询
-                "shutProgress": True     # 必须是 True，屏蔽多余进度推送
+                "webHook": "-1",         
+                "shutProgress": True     
             }
             
             nr = requests.post(draw_url, json=nano_payload, headers=headers, timeout=120)
             if nr.ok:
                 text_resp = nr.text
                 if "data:" in text_resp:
-                    # 如果 GRSAI 跑的是 SSE 流式返回
                     import json
                     for line in text_resp.splitlines():
                         if line.startswith("data:"):
@@ -723,15 +721,16 @@ def generate_image():
                             except: pass
                     return jsonify({"success": False, "error": "流式结束但未提取到结果"}), 400
                 else:
-                    # 如果是纯 JSON 且直接在里面返回了数据（你遇到的情况）
                     import json
                     try:
                         res_data = nr.json()
-                        if res_data.get("status") == "succeeded" and res_data.get("results"):
-                            return jsonify({"success": True, "images": [res_data["results"][0]["url"]]})
-                        elif res_data.get("status") == "failed":
-                            return jsonify({"success": False, "error": res_data.get("failure_reason", "生成失败")}), 400
-                        # 如果它还是走了任务队列
+                        # 兼容处理：如果它像你遇到的那样，把结果直接拍在了最外层
+                        task_data = res_data.get("data", res_data)
+                        if task_data.get("status") == "succeeded" and task_data.get("results"):
+                            return jsonify({"success": True, "images": [task_data["results"][0]["url"]]})
+                        elif task_data.get("status") == "failed":
+                            return jsonify({"success": False, "error": task_data.get("failure_reason", "生成失败")}), 400
+                        # 正常流程：走任务队列轮询
                         elif res_data.get("code") in [0, 1] and res_data.get("data"):
                             task_id = res_data["data"]
                             if isinstance(task_id, dict): task_id = task_id.get("id", task_id.get("taskId"))
@@ -742,13 +741,15 @@ def generate_image():
                                 pr = requests.post(poll_url, json={"id": task_id, "action": "result"}, headers=headers, timeout=10)
                                 if pr.ok:
                                     p_data = pr.json()
-                                    st = p_data.get("data", {}).get("status")
+                                    # 关键修复点：不管它是规范的包在 data 里的，还是直接拍在外面的，通杀！
+                                    p_task_data = p_data.get("data", p_data)
+                                    st = p_task_data.get("status")
                                     if st in ["succeeded", "SUCCESS"]:
-                                        imgs = p_data.get("data", {}).get("results", [{"url": p_data.get("data", {}).get("imageUrl")}])
+                                        imgs = p_task_data.get("results", [{"url": p_task_data.get("imageUrl")}])
                                         return jsonify({"success": True, "images": [imgs[0].get("url")]})
                                     elif st in ["failed", "FAIL"]:
-                                        return jsonify({"success": False, "error": p_data.get("data", {}).get("failReason", "云端失败")}), 400
-                            return jsonify({"success": False, "error": "任务轮询超时"}), 400
+                                        return jsonify({"success": False, "error": p_task_data.get("failReason", p_task_data.get("failure_reason", "云端失败"))}), 400
+                            return jsonify({"success": False, "error": "任务轮询超时（已等待 120 秒）"}), 400
                         else:
                             return jsonify({"success": False, "error": f"未知的API响应格式: {res_data}"}), 400
                     except Exception as e:
