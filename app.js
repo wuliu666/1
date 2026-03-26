@@ -797,9 +797,53 @@ async function runImageSplitter() {
 function toggleImgGenSettings() { const panel = document.getElementById('imgGenSettingsPanel'); panel.style.display = panel.style.display === 'none' ? 'block' : 'none'; }
 function selectRatio(el, ratioText, width, height) { document.querySelectorAll('.ratio-btn').forEach(i => i.classList.remove('active')); el.classList.add('active'); currentSelectedRatioText = ratioText; document.getElementById('imgWidth').value = width; document.getElementById('imgHeight').value = height; const iconDiv = el.querySelector('.ratio-icon'); if (iconDiv) document.getElementById('toggleRatioIcon').className = iconDiv.className; document.getElementById('toggleRatioText').innerText = ratioText; }
 function selectRes(el, cleanText) { document.querySelectorAll('.res-btn').forEach(i => i.classList.remove('active')); el.classList.add('active'); currentSelectedResText = cleanText; document.getElementById('toggleResText').innerText = cleanText; }
-function previewGenImage(input) { if (input.files && input.files[0]) { const reader = new FileReader(); reader.onload = function(e) { currentUploadedImageBase64 = e.target.result; const wrap = document.getElementById('imgUploadPreview'); wrap.style.display = 'inline-block'; wrap.innerHTML = `<div class="img-preview-wrap"><img src="${currentUploadedImageBase64}" class="img-preview-thumb"><div class="img-preview-close" onclick="clearGenImage()">×</div></div>`; }; reader.readAsDataURL(input.files[0]); } }
-function clearGenImage() { currentUploadedImageBase64 = null; document.getElementById('imgGenUpload').value = ''; document.getElementById('imgUploadPreview').style.display = 'none'; document.getElementById('imgUploadPreview').innerHTML = ''; }
-function generateMockImageBase64(text, w=512, h=512) { const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h; const ctx = canvas.getContext('2d'); ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--bg-user-msg') || '#007AFF'; ctx.fillRect(0,0,w,h); ctx.fillStyle = '#fff'; ctx.font = 'bold 36px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(text, w/2, h/2); return canvas.toDataURL('image/png'); }
+
+// 支持全局点击空白处收起尺寸设置面板
+document.addEventListener('click', (e) => {
+    const panel = document.getElementById('imgGenSettingsPanel'); const toggleBtn = document.getElementById('imgGenSettingsToggle');
+    if (panel && panel.style.display === 'block') { if (!panel.contains(e.target) && !toggleBtn.contains(e.target)) { panel.style.display = 'none'; } }
+});
+
+// 动态高度自适应输入框
+function autoResizeTextarea(el) { el.style.height = '36px'; el.style.height = Math.min(el.scrollHeight, 200) + 'px'; }
+
+// 拖拽上传引擎
+function handleComposerDrop(e) { 
+    const files = e.dataTransfer.files; 
+    if(files && files.length > 0 && files[0].type.startsWith('image/')) { 
+        const input = document.getElementById('imgGenUpload'); input.files = files; previewGenImage(input); 
+    } 
+}
+// 图片预览（支持点击看大图）与清除系统
+function previewGenImage(input) { if (input.files && input.files[0]) { const reader = new FileReader(); reader.onload = function(e) { currentUploadedImageBase64 = e.target.result; const wrap = document.getElementById('imgUploadPreview'); wrap.style.display = 'inline-block'; wrap.innerHTML = `<div class="img-preview-wrap"><img src="${currentUploadedImageBase64}" class="img-preview-thumb" style="cursor:pointer;" onclick="openFullImageFromBase64('${currentUploadedImageBase64}')" title="点击放大查看"><div class="img-preview-close" onclick="clearGenImage()">×</div></div>`; }; reader.readAsDataURL(input.files[0]); } }
+function clearGenImage() { currentUploadedImageBase64 = null; const u = document.getElementById('imgGenUpload'); if(u) u.value = ''; document.getElementById('imgUploadPreview').style.display = 'none'; document.getElementById('imgUploadPreview').innerHTML = ''; }
+function clearComposer() { clearGenImage(); const input = document.getElementById('imgGenInput'); if(input) { input.value = ''; autoResizeTextarea(input); } }
+function openFullImageFromBase64(base64Data) { const modal = document.getElementById('imageViewerModal'); const canvas = document.getElementById('fullViewCanvas'); const ctx = canvas.getContext('2d'); const img = new Image(); img.onload = () => { canvas.width = img.width; canvas.height = img.height; ctx.drawImage(img, 0, 0); modal.classList.add('show'); }; img.src = base64Data; }
+
+// 智能复用与重新生成引擎
+function applyImageGenPrompt(msgIndex) {
+    const chat = chats.find(c => c.id === IMAGE_GEN_ID); if(!chat || !chat.messages[msgIndex]) return;
+    const msg = chat.messages[msgIndex];
+    let promptText = msg.content; const promptMatch = promptText.match(/【提示词】\n(.*)/s) || promptText.match(/【提示词】(.*)/s);
+    if (promptMatch && promptMatch[1]) {
+        let extracted = promptMatch[1].trim();
+        extracted = extracted.replace(/【强制底层约束.*?】/g, '').replace(/反向提示词：.*$/g, '').trim();
+        document.getElementById('imgGenInput').value = extracted;
+    } else { document.getElementById('imgGenInput').value = promptText; }
+    
+    if(msg.attachedImage) {
+        currentUploadedImageBase64 = msg.attachedImage; const wrap = document.getElementById('imgUploadPreview'); wrap.style.display = 'inline-block'; 
+        wrap.innerHTML = `<div class="img-preview-wrap"><img src="${currentUploadedImageBase64}" class="img-preview-thumb" style="cursor:pointer;" onclick="openFullImageFromBase64('${currentUploadedImageBase64}')" title="点击放大"><div class="img-preview-close" onclick="clearGenImage()">×</div></div>`;
+    }
+    const inputEl = document.getElementById('imgGenInput'); autoResizeTextarea(inputEl); inputEl.focus(); showToast("✅ 已成功抓取该轮参数至输入区");
+}
+
+function regenerateImage(msgIndex) {
+    const chat = chats.find(c => c.id === IMAGE_GEN_ID); if(!chat) return;
+    let userMsgIndex = -1; for(let i = msgIndex - 1; i >= 0; i--) { if(chat.messages[i].role === 'user') { userMsgIndex = i; break; } }
+    if(userMsgIndex === -1) return alert("未找到该生成的历史指令！");
+    applyImageGenPrompt(userMsgIndex); setTimeout(() => { sendImageGenMessage(); }, 200);
+}
 
 async function sendImageGenMessage() {
     let u = getUserUsage(currentUserKey);
@@ -813,75 +857,41 @@ async function sendImageGenMessage() {
     
     const w = document.getElementById('imgWidth').value; const h = document.getElementById('imgHeight').value;
     const sel = document.getElementById('imgGenModelSelect'); 
-    const rawVal = sel.value; 
-    const modelText = sel.options[sel.selectedIndex].text;
-    const styleValue = document.getElementById('stylePresetSelect').value;
+    const rawVal = sel.value; const modelText = sel.options[sel.selectedIndex].text;
 
-    let apiSource = 'geeknow';
-    let modelId = rawVal;
-    
-    // 解析我们在 loadImageModelsToUI 中注入的 "通道ID:::模型ID" 格式
-    if(rawVal.includes(':::')) {
-        const parts = rawVal.split(':::');
-        apiSource = parts[0];
-        modelId = parts[1];
-    } else {
-        apiSource = document.getElementById('apiSourceSelect') ? document.getElementById('apiSourceSelect').value : 'geeknow';
-    }
-
-    let styleText = "";
-    if(styleValue === 'guoman') styleText = "，高质量国漫精绘风格";
-    else if(styleValue === 'suspense') styleText = "，现代悬疑压迫感，暗黑光影";
-    else if(styleValue === 'visual_novel') styleText = "，二次元视觉小说风格，精致CG，日系赛璐璐";
+    let apiSource = 'geeknow'; let modelId = rawVal;
+    if(rawVal.includes(':::')) { const parts = rawVal.split(':::'); apiSource = parts[0]; modelId = parts[1]; } 
+    else { apiSource = document.getElementById('apiSourceSelect') ? document.getElementById('apiSourceSelect').value : 'geeknow'; }
 
     const systemConstraint = " 【强制底层约束：重新使用大模型生成，漫画或画面中的文本必须全部使用简体中文，不要有乱码，不要有繁体字】";
     const negativePrompt = "反向提示词：bad anatomy, traditional chinese characters, gibberish, messy text, garbled characters";
 
-    let finalEngineeredPrompt = (msg || '（无提示词）') + styleText + systemConstraint + "\n" + negativePrompt;
-    if (currentUploadedImageBase64 && currentUploadedImageBase64.startsWith('http')) {
-        finalEngineeredPrompt = currentUploadedImageBase64 + " " + finalEngineeredPrompt;
-    }
+    let finalEngineeredPrompt = (msg || '（无提示词）') + systemConstraint + "\n" + negativePrompt;
+    if (currentUploadedImageBase64 && currentUploadedImageBase64.startsWith('http')) { finalEngineeredPrompt = currentUploadedImageBase64 + " " + finalEngineeredPrompt; }
 
     document.getElementById('imgGenSettingsPanel').style.display = 'none';
-    chat.messages.push({ role: 'user', content: `【模型】${modelText}\n【尺寸设定】${currentSelectedRatioText} (${w}x${h}) | ${currentSelectedResText}\n【提示词】${finalEngineeredPrompt}`, attachedImage: currentUploadedImageBase64, timestamp: Date.now() });
-    input.value = ''; if(document.getElementById('imgGenInput')) document.getElementById('imgGenInput').value = '';
-    clearGenImage(); renderMessages();
+    chat.messages.push({ role: 'user', content: `【模型】${modelText}\n【尺寸设定】${currentSelectedRatioText} (${w}x${h}) | ${currentSelectedResText}\n【提示词】\n${finalEngineeredPrompt}`, attachedImage: currentUploadedImageBase64, timestamp: Date.now() });
+    
+    // 发送后自动清空面板
+    input.value = ''; clearComposer(); renderMessages();
     
     const botMsgIndex = chat.messages.length;
-    chat.messages.push({ role: 'bot', content: '', timestamp: Date.now(), isThinking: true });
-    renderMessages();
+    chat.messages.push({ role: 'bot', content: '', timestamp: Date.now(), isThinking: true }); renderMessages();
 
     try {
         const res = await fetch(`${API_BASE_URL}/api/generate_image`, {
             method: 'POST', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                password: currentUserKey,
-                prompt: finalEngineeredPrompt,
-                model: modelId,
-                size: `${w}x${h}`,
-                api_source: apiSource
-            })
+            body: JSON.stringify({ password: currentUserKey, prompt: finalEngineeredPrompt, model: modelId, size: `${w}x${h}`, api_source: apiSource })
         });
-
-        const d = await res.json();
-        chat.messages[botMsgIndex].isThinking = false;
-
+        const d = await res.json(); chat.messages[botMsgIndex].isThinking = false;
         if (d.success && d.images && d.images.length > 0) {
-            incrementUsage(currentUserKey); 
-            addAuditLog(`调用 ${modelText} 生成了图片`); 
-            chat.messages[botMsgIndex].content = '绘制完成：';
-            chat.messages[botMsgIndex].type = 'image_gallery';
-            chat.messages[botMsgIndex].images = d.images; 
-        } else {
-            chat.messages[botMsgIndex].content = "❌ 绘制失败: \n" + (d.error || "未知原因");
-        }
-    } catch(e) {
-        chat.messages[botMsgIndex].isThinking = false;
-        chat.messages[botMsgIndex].content = "❌ 网络异常，无法连接到服务器进行生图。";
-    }
-
+            incrementUsage(currentUserKey); addAuditLog(`调用 ${modelText} 生成了图片`); 
+            chat.messages[botMsgIndex].content = '绘制完成：'; chat.messages[botMsgIndex].type = 'image_gallery'; chat.messages[botMsgIndex].images = d.images; 
+        } else { chat.messages[botMsgIndex].content = "❌ 绘制失败: \n" + (d.error || "未知原因"); }
+    } catch(e) { chat.messages[botMsgIndex].isThinking = false; chat.messages[botMsgIndex].content = "❌ 网络异常，无法连接到服务器进行生图。"; }
     saveChats(); renderMessages();
 }
+
 function downloadSingleImage(base64Data, index) { const link = document.createElement('a'); link.href = base64Data; link.download = `Img_${index+1}.png`; link.click(); }
 function downloadGalleryZip(msgIndex) {
     const chat = chats.find(c => c.id === IMAGE_GEN_ID), msg = chat.messages[msgIndex]; if(!msg || !msg.images) return;
@@ -1014,9 +1024,17 @@ function renderMessages() {
         contentWrapper.appendChild(contentDiv);
         
         if (m.role === 'user' && m.attachedImage) { const imgWrap = document.createElement('div'); imgWrap.style.marginTop = '10px'; imgWrap.innerHTML = `<img src="${m.attachedImage}" style="max-width: 120px; border-radius: 8px; border: 2px solid rgba(255,255,255,0.3);">`; contentWrapper.appendChild(imgWrap); }
-        if (m.type === 'image_gallery' && m.images) {
+       if (m.type === 'image_gallery' && m.images) {
             const galleryDiv = document.createElement('div'); galleryDiv.className = 'gallery-container';
-            m.images.forEach((imgBase64, imgIndex) => { const item = document.createElement('div'); item.className = 'gallery-item'; item.innerHTML = `<img src="${imgBase64}"><button class="dl-btn" onclick="downloadSingleImage('${imgBase64}', ${imgIndex})">⬇️</button>`; galleryDiv.appendChild(item); });
+            m.images.forEach((imgBase64, imgIndex) => { 
+                const item = document.createElement('div'); item.className = 'gallery-item'; 
+                item.innerHTML = `<img src="${imgBase64}">
+                                  <div class="hover-overlay">
+                                      <button class="hover-btn" onclick="openFullImageFromBase64('${imgBase64}')" title="放大预览">👁️</button>
+                                      <button class="hover-btn" onclick="downloadSingleImage('${imgBase64}', ${imgIndex})" title="下载原图">⬇️</button>
+                                  </div>`; 
+                galleryDiv.appendChild(item); 
+            });
             contentWrapper.appendChild(galleryDiv);
         }
         
@@ -1032,7 +1050,14 @@ function renderMessages() {
         if (chat.isStoryboard && m.role === 'bot' && !m.isThinking) {
             const extractBtn = document.createElement('button'); extractBtn.className = 'msg-action-btn'; extractBtn.innerHTML = '✨ 提取画面'; extractBtn.onclick = () => extractAndGenerateImage(m.content); actionBar.appendChild(extractBtn);
         }
-        if (m.type === 'image_gallery') { const zipBtn = document.createElement('button'); zipBtn.className = 'msg-action-btn'; zipBtn.innerHTML = '📦 ZIP'; zipBtn.onclick = () => downloadGalleryZip(index); actionBar.appendChild(zipBtn); }
+        if (currentChatId === IMAGE_GEN_ID && !m.isThinking) {
+            if (m.role === 'user') {
+                const applyBtn = document.createElement('button'); applyBtn.className = 'msg-action-btn'; applyBtn.innerHTML = '♻️ 复用参数'; applyBtn.onclick = () => applyImageGenPrompt(index); actionBar.appendChild(applyBtn);
+            } else if (m.role === 'bot' && m.type === 'image_gallery') {
+                const regenBtn = document.createElement('button'); regenBtn.className = 'msg-action-btn'; regenBtn.innerHTML = '🔄 重新生成'; regenBtn.onclick = () => regenerateImage(index); actionBar.appendChild(regenBtn);
+            }
+        }
+        if (m.type === 'image_gallery') { const zipBtn = document.createElement('button'); zipBtn.className = 'msg-action-btn'; zipBtn.innerHTML = '📦 打包ZIP'; zipBtn.onclick = () => downloadGalleryZip(index); actionBar.appendChild(zipBtn); }
         if (!m.isThinking) { const copyBtn = document.createElement('button'); copyBtn.className = 'msg-action-btn'; copyBtn.innerHTML = '📋 复制'; copyBtn.onclick = () => copyToClipboard(m.content); actionBar.appendChild(copyBtn); }
         if (currentChatId !== IMAGE_GEN_ID && !m.isThinking) { const delBtn = document.createElement('button'); delBtn.className = 'msg-action-btn delete-action'; delBtn.innerHTML = '🗑️ 删除'; delBtn.onclick = () => { openConfirmModal(() => { chat.messages.splice(index, 1); saveChats(); renderMessages(); }); }; actionBar.appendChild(delBtn); }
         
