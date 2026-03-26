@@ -701,7 +701,7 @@ function renderAssetGrid() {
     filtered.forEach(asset => {
         const isSelected = selectedAssetIds.has(asset.id); let cardHtml = `<div class="asset-card ${isSelected ? 'selected' : ''}">`;
         if (isBulkMode) { cardHtml += `<div class="bulk-overlay" onclick="toggleSelectAsset('${asset.id}')"></div><div class="checkbox-icon">✓</div>`; }
-        cardHtml += `<div class="canvas-container" title="点击查看安全无码大图" style="width: 100%; height: 240px; background: var(--bg-container); cursor: pointer; display: flex; justify-content: center; align-items: center;" onclick="openFullImage('${asset.id}')" oncontextmenu="return false;" ondragstart="return false;"><canvas id="canvas_${asset.id}" style="width: 100%; height: 100%; object-fit: contain; pointer-events: none;"></canvas></div><div style="padding: 16px;"><div style="font-weight: bold; margin-bottom: 6px; font-size: 1.05rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${asset.title}">${asset.title}</div><div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 12px; display: inline-block; background: var(--bg-container); padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border-color);">${asset.type === 'character' ? '👤 角色设定' : '🏞️ 场景概念'}</div><div style="display: flex; gap: 8px;"><button class="nav-btn" style="flex: 1; padding: 8px; font-size: 0.85rem;" onclick="copyToClipboard('${asset.prompt}')">📋 词+Seed</button><button class="nav-btn" style="flex: 1; padding: 8px; font-size: 0.85rem; border-color: var(--shen-color); color: var(--shen-color);" onclick="useAssetInGen('${asset.id}')">🎨 去创作</button></div>`;
+       cardHtml += `<div class="canvas-container" title="点击查看安全无码大图" style="width: 100%; height: 240px; background: var(--bg-container); cursor: pointer; display: flex; justify-content: center; align-items: center;" onclick="openFullImage('${asset.id}')" oncontextmenu="return false;" ondragstart="return false;"><canvas id="canvas_${asset.id}" style="width: 100%; height: 100%; object-fit: contain; pointer-events: none;"></canvas></div><div style="padding: 16px;"><div style="font-weight: bold; margin-bottom: 6px; font-size: 1.05rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${asset.title}">${asset.title}</div><div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 12px; display: inline-block; background: var(--bg-container); padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border-color);">${asset.type === 'character' ? '👤 角色设定' : '🏞️ 场景概念'}</div><div style="display: flex; gap: 8px;"><button class="nav-btn" style="flex: 1; padding: 8px; font-size: 0.85rem; border-color: var(--shen-color); color: var(--shen-color);" onclick="useAssetAsReference('${asset.image}')">🪄 垫图</button><button class="nav-btn" style="flex: 1; padding: 8px; font-size: 0.85rem;" onclick="useAssetPrompt('${(asset.prompt||'').replace(/'/g, "\\'")}')">♻️ 提词</button></div>`;
         if (canManage && !isBulkMode) { cardHtml += `<div style="display: flex; gap: 8px; margin-top: 8px;"><button class="nav-btn" style="flex: 1; padding: 6px; font-size: 0.85rem;" onclick="editAsset('${asset.id}')">✏️ 编辑</button><button class="nav-btn" style="flex: 1; padding: 6px; font-size: 0.85rem; border: none; color: var(--danger-color); background: transparent; opacity: 0.7;" onclick="deleteAsset('${asset.id}')" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.7'">🗑️ 删除</button></div>`; }
         cardHtml += `</div></div>`; grid.innerHTML += cardHtml;
     });
@@ -1078,6 +1078,7 @@ function renderMessages() {
                 item.innerHTML = `<img src="${imgBase64}">
                                   <div class="hover-overlay">
                                       <button class="hover-btn" onclick="openFullImageFromBase64('${imgBase64}')" title="放大预览">👁️</button>
+                                      <button class="hover-btn" onclick="saveToPersonalLibrary('${imgBase64}', ${index})" title="一键保存至个人素材库">💾</button>
                                       <button class="hover-btn" onclick="downloadSingleImage('${imgBase64}', ${imgIndex})" title="下载原图">⬇️</button>
                                   </div>`; 
                 galleryDiv.appendChild(item); 
@@ -1095,7 +1096,7 @@ function renderMessages() {
         }
 
         if (chat.isStoryboard && m.role === 'bot' && !m.isThinking) {
-            const extractBtn = document.createElement('button'); extractBtn.className = 'msg-action-btn'; extractBtn.innerHTML = '✨ 提取画面'; extractBtn.onclick = () => extractAndGenerateImage(m.content); actionBar.appendChild(extractBtn);
+            const extractBtn = document.createElement('button'); extractBtn.className = 'msg-action-btn'; extractBtn.innerHTML = '🎨 一键发往生图'; extractBtn.onclick = () => extractAndGenerateImage(m.content); actionBar.appendChild(extractBtn);
         }
         if (currentChatId === IMAGE_GEN_ID && !m.isThinking) {
             if (m.role === 'user') {
@@ -1194,6 +1195,70 @@ async function sendMessage() {
         if (!isAnimating && done) { chat.messages[botMsgIndex].content = targetContent; if (currentChatId === chat.id) { const div = document.getElementById(`msg-content-${botMsgIndex}`); if (div) div.innerHTML = formatText(chat.messages[botMsgIndex].content); } saveChats(); renderSidebar(); }
 
     } catch(e) { chat.messages[botMsgIndex].isThinking = false; chat.messages[botMsgIndex].content = "网络连接失败，请重试~"; saveChats(); renderMessages(); }
+}
+
+// ================== 生态双向连通引擎 ==================
+
+// 1. 生图入库：将生成的图片及参数存入个人素材库
+async function saveToPersonalLibrary(base64Data, msgIndex) {
+    const chat = chats.find(c => c.id === currentChatId); if (!chat) return;
+    
+    // 向上追溯，提取生成该图时的提示词
+    let promptText = "无提示词";
+    for(let i = msgIndex - 1; i >= 0; i--) {
+        if(chat.messages[i].role === 'user') {
+            const m = chat.messages[i].content.match(/【提示词】\n(.*)/s) || chat.messages[i].content.match(/【提示词】(.*)/s);
+            if (m && m[1]) promptText = m[1].replace(/【强制底层约束.*?】/g, '').replace(/反向提示词：.*$/g, '').trim();
+            else promptText = chat.messages[i].content;
+            break;
+        }
+    }
+    
+    try {
+        showToast("⏳ 正在保存至个人素材库...");
+        const res = await fetch(base64Data); const blob = await res.blob();
+        const file = new File([blob], `gen_${Date.now()}.png`, { type: 'image/png' });
+        
+        const formData = new FormData();
+        formData.append('file', file); 
+        formData.append('title', `AI生图_${new Date().toLocaleTimeString('zh-CN', {hour12:false})}`);
+        formData.append('type', 'image'); 
+        formData.append('prompt', promptText); 
+        formData.append('library_mode', 'personal'); 
+        formData.append('user_key', currentUserKey);
+        
+        const uploadRes = await fetch(`${API_BASE_URL}/api/upload_asset`, { method: 'POST', body: formData });
+        const data = await uploadRes.json();
+        
+        if (data.success) { 
+            showToast("✅ 已成功存入您的个人素材库！"); 
+            addAuditLog('将生图结果快捷入库至个人素材库'); 
+        } else { 
+            alert("保存失败: " + (data.error || "未知原因")); 
+        }
+    } catch (e) { alert("保存错误，请检查网络连接。"); }
+}
+
+// 2. 资产出库：将素材库的图片提取为控制台垫图
+function useAssetAsReference(imgUrl) {
+    switchChat(IMAGE_GEN_ID);
+    const fullUrl = imgUrl.startsWith('http') ? imgUrl : (API_BASE_URL + imgUrl);
+    if(currentUploadedImages.length >= 10) return alert("⚠️ 控制台垫图已达 10 张上限！");
+    
+    currentUploadedImages.push(fullUrl);
+    renderUploadPreview();
+    showToast("✅ 已提取素材作为垫图");
+}
+
+// 3. 资产出库：提取素材库的提示词填入控制台
+function useAssetPrompt(promptText) {
+    if(!promptText || promptText === 'undefined') return showToast("⚠️ 该素材没有附带提示词");
+    switchChat(IMAGE_GEN_ID);
+    const inputEl = document.getElementById('imgGenInput');
+    inputEl.value = promptText;
+    if(typeof autoResizeTextarea === 'function') autoResizeTextarea(inputEl);
+    inputEl.focus();
+    showToast("✅ 已成功提取提示词参数");
 }
 
 init();

@@ -18,7 +18,7 @@
         "geeknow_key": "",
         "grsai_enabled": false,
         "grsai_url": "https://api.grsai.com/v1",
-        "grsai_key": "",
+        "grsai_key": "sk-a3a9583f4cc54dc3a7404d17c4800c22",
         "custom_channels": [],
         "dynamic_models": {
             "custom_1774476409894": [],
@@ -33,11 +33,6 @@
                 {
                     "id": "nano-banana-2",
                     "name": "nano-banana-2",
-                    "type": "image"
-                },
-                {
-                    "id": "1",
-                    "name": "1",
                     "type": "image"
                 }
             ],
