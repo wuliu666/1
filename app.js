@@ -436,7 +436,10 @@ function switchAdminTab(tabName) {
     document.querySelectorAll('.admin-tab-content').forEach(c => { c.classList.remove('active'); c.style.display = 'none'; }); 
     document.getElementById(`tabBtn-${tabName}`).classList.add('active'); 
     let targetTab = document.getElementById(`adminTab-${tabName}`); targetTab.classList.add('active'); targetTab.style.display = 'block'; 
-    if(tabName === 'keys') refreshKeyList(); if(tabName === 'models') renderAdminModels(); if(tabName === 'logs') renderAuditLogs(); if(tabName === 'api') loadApiSettings(); 
+    if(tabName === 'keys') refreshKeyList(); 
+    if(tabName === 'models') { renderAdminModels(); loadApiSettings(); } 
+    if(tabName === 'logs') renderAuditLogs(); 
+    if(tabName === 'api') loadApiSettings(); 
 }
 
 async function openAdminPanel() { document.getElementById('adminModal').classList.add('show'); switchAdminTab('keys'); }

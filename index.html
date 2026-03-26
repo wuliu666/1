@@ -180,7 +180,10 @@
                     </div>
                 <div style="display: flex; gap: 8px; border-top: 1px dashed var(--border-color); padding-top: 15px;">
                     <select id="newImageModelSource" style="padding:8px; border-radius:6px; border:1px solid var(--border-color); font-size:0.85rem; background:var(--bg-input); color:var(--text-main); outline:none;" title="选择此生图模型要走哪条中转 API 通道">
-                        </select>
+                        <option value="geeknow">🚀 GeekNow 中转</option>
+                        <option value="grsai">⚡ GRSAI 中转</option>
+                        <option value="gemini">🌐 官方 Gemini 直连</option>
+                    </select>
                     <input type="text" id="newImageModelId" placeholder="底层接口标识 (如 nanopro)" style="flex:1; padding:8px 12px; border-radius:6px; border:1px solid var(--border-color); font-size:0.85rem; background:var(--bg-input); color:var(--text-main); outline:none;">
                     <input type="text" id="newImageModelName" placeholder="前端自定义名称 (如 ✨推荐 Nano)" style="flex:1; padding:8px 12px; border-radius:6px; border:1px solid var(--border-color); font-size:0.85rem; background:var(--bg-input); color:var(--text-main); outline:none;">
                     <button class="nav-btn" onclick="addModel('image')" style="padding: 8px 20px; font-weight: bold;">➕ 添加上架</button>
