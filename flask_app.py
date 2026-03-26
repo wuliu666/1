@@ -718,10 +718,16 @@ def generate_image():
                         yield f"data: {json.dumps({'error': f'官方拒绝请求 ({nr.status_code}): {nr.text[:150]}'})}\n\n"
                         return
                         
-                    # 像接水一样，把官方发来的进度实时扔给网页前端！
+                   # 像接水一样，把官方发来的进度实时扔给网页前端！
                     for line in nr.iter_lines():
                         if line:
-                            yield f"{line.decode('utf-8')}\n\n"
+                            decoded = line.decode('utf-8').strip()
+                            if decoded:
+                                # 核心防漏：强制给返回结果套上标准的 SSE 'data: ' 前缀，防错失进度
+                                if not decoded.startswith("data:"):
+                                    yield f"data: {decoded}\n\n"
+                                else:
+                                    yield f"{decoded}\n\n"
                     return
                 except Exception as re:
                     yield f"data: {json.dumps({'error': f'流式请求断开: {str(re)}'})}\n\n"

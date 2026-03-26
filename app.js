@@ -913,7 +913,8 @@ async function sendImageGenMessage() {
     input.value = ''; clearComposer(); renderMessages();
     
     const botMsgIndex = chat.messages.length;
-    chat.messages.push({ role: 'bot', content: '', timestamp: Date.now(), isThinking: false }); 
+    // 💡 核心修复：打上 isHTML 标记，告诉渲染器这是进度条UI，绝对不要把它当成文字转义！
+    chat.messages.push({ role: 'bot', content: '', timestamp: Date.now(), isThinking: false, isHTML: true }); 
     
     // 💡 植入高颜值动态进度条 UI
     chat.messages[botMsgIndex].content = `
@@ -961,6 +962,7 @@ async function sendImageGenMessage() {
                         
                         // 遇到报错，立刻终止
                         if (d.error) {
+                            chat.messages[botMsgIndex].isHTML = false;
                             chat.messages[botMsgIndex].content = "❌ 绘制失败: \n" + d.error;
                             renderMessages();
                             return; 
@@ -982,6 +984,7 @@ async function sendImageGenMessage() {
                             if (imgUrls.length > 0) {
                                 incrementUsage(currentUserKey);
                                 addAuditLog(`调用 ${modelText} 生成了图片`);
+                                chat.messages[botMsgIndex].isHTML = false; // 渲染完毕后收回特权
                                 chat.messages[botMsgIndex].content = '✨ 绘制完成：';
                                 chat.messages[botMsgIndex].type = 'image_gallery';
                                 chat.messages[botMsgIndex].images = imgUrls;
@@ -989,6 +992,7 @@ async function sendImageGenMessage() {
                                 return;
                             }
                         } else if (d.status === 'failed' || d.status === 'FAIL') {
+                            chat.messages[botMsgIndex].isHTML = false;
                             chat.messages[botMsgIndex].content = "❌ 绘制失败: \n" + (d.failure_reason || d.failReason || "云端异常拦截");
                             renderMessages();
                             return;
@@ -1000,22 +1004,70 @@ async function sendImageGenMessage() {
         
         // 如果数据流走完还没拿到图片（极端情况防卡死）
         if (chat.messages[botMsgIndex].type !== 'image_gallery') {
+            chat.messages[botMsgIndex].isHTML = false;
             chat.messages[botMsgIndex].content = "❌ 数据流已结束，但未能获取到图片。";
             renderMessages();
         }
 
     } catch(e) { 
+        chat.messages[botMsgIndex].isHTML = false;
         chat.messages[botMsgIndex].content = "❌ 网络连接中断！请检查您的网络或后端服务。"; 
         renderMessages();
     }
 }
 
 
-function downloadSingleImage(base64Data, index) { const link = document.createElement('a'); link.href = base64Data; link.download = `Img_${index+1}.png`; link.click(); }
-function downloadGalleryZip(msgIndex) {
+async function downloadSingleImage(imgUrl, index) { 
+    try {
+        // 1. 如果是本地的 Base64 数据，直接触发下载
+        if (imgUrl.startsWith('data:')) {
+            const link = document.createElement('a'); link.href = imgUrl; link.download = `Img_${index+1}.png`; link.click();
+            return;
+        }
+        
+        // 2. 如果是云端 HTTP 链接，强制 Fetch 拉取到本地内存后下载，彻底杜绝跳转新标签页！
+        showToast("⏳ 正在拉取原图，即将开始下载...");
+        const res = await fetch(imgUrl);
+        const blob = await res.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        
+        const link = document.createElement('a'); 
+        link.href = blobUrl; 
+        link.download = `AI_Image_${Date.now()}_${index+1}.png`; // 加上时间戳防止重名
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(blobUrl); // 释放内存
+    } catch(e) {
+        // 兜底方案：如果遇到了极其严格的跨域限制拉取失败，再降级为新标签页打开
+        const link = document.createElement('a'); link.href = imgUrl; link.target = '_blank'; link.download = `Img_${index+1}.png`; link.click();
+    }
+}
+
+async function downloadGalleryZip(msgIndex) {
     const chat = chats.find(c => c.id === IMAGE_GEN_ID), msg = chat.messages[msgIndex]; if(!msg || !msg.images) return;
-    const zip = new JSZip(); msg.images.forEach((b64, i) => { zip.file(`Img_${i+1}.png`, b64.split(',')[1], { base64: true }); });
-    zip.generateAsync({ type: 'blob' }).then(content => { const link = document.createElement('a'); link.href = URL.createObjectURL(content); link.download = `Images.zip`; link.click(); addAuditLog('打包下载了生成的画廊');});
+    showToast("📦 正在拉取所有原图并打包 ZIP，请稍候...");
+    const zip = new JSZip(); 
+    
+    // 异步拉取所有图片转化为可打包的二进制数据
+    const promises = msg.images.map(async (imgUrl, i) => {
+        try {
+            if(imgUrl.startsWith('data:')) {
+                zip.file(`Img_${i+1}.png`, imgUrl.split(',')[1], { base64: true });
+            } else {
+                const res = await fetch(imgUrl);
+                const blob = await res.blob();
+                zip.file(`Img_${i+1}.png`, blob);
+            }
+        } catch(e) { console.error("ZIP打包拉取失败", e); }
+    });
+    
+    await Promise.all(promises);
+    zip.generateAsync({ type: 'blob' }).then(content => { 
+        const link = document.createElement('a'); link.href = URL.createObjectURL(content); link.download = `AI_Gallery_${Date.now()}.zip`; link.click(); 
+        addAuditLog('打包下载了生成的画廊'); 
+        showToast("✅ ZIP 打包下载完成！"); 
+    });
 }
 
 function renderHubContent() {
@@ -1138,6 +1190,7 @@ function renderMessages() {
 
         const contentDiv = document.createElement('div'); contentDiv.className = 'msg-content'; contentDiv.id = `msg-content-${index}`; 
         if (m.isThinking) { contentDiv.innerHTML = `<div class="typing-indicator"><span></span><span></span><span></span><span class="typing-text">正在思考...</span></div>`; } 
+        else if (m.isHTML) { contentDiv.innerHTML = m.content; } 
         else { contentDiv.innerHTML = formatText(m.content); }
         
         contentWrapper.appendChild(contentDiv);
@@ -1153,17 +1206,72 @@ function renderMessages() {
             }
         }
        if (m.type === 'image_gallery' && m.images) {
-            const galleryDiv = document.createElement('div'); galleryDiv.className = 'gallery-container';
-            m.images.forEach((imgBase64, imgIndex) => { 
-                const item = document.createElement('div'); item.className = 'gallery-item'; 
-                item.innerHTML = `<img src="${imgBase64}">
-                                  <div class="hover-overlay">
-                                      <button class="hover-btn" onclick="openFullImageFromBase64('${imgBase64}')" title="放大预览">👁️</button>
-                                      <button class="hover-btn" onclick="saveToPersonalLibrary('${imgBase64}', ${index})" title="一键保存至个人素材库">💾</button>
-                                      <button class="hover-btn" onclick="downloadSingleImage('${imgBase64}', ${imgIndex})" title="下载原图">⬇️</button>
-                                  </div>`; 
-                galleryDiv.appendChild(item); 
-            });
+            const galleryDiv = document.createElement('div'); 
+            galleryDiv.style.cssText = "display: flex; gap: 15px; background: var(--bg-container); padding: 15px; border-radius: 12px; border: 1px solid var(--border-color); margin-top: 10px; width: 100%; box-sizing: border-box;";
+            
+            // 左侧大图焦点区域
+            const mainArea = document.createElement('div');
+            mainArea.style.cssText = "flex: 1; display: flex; flex-direction: column; gap: 12px; min-width: 0;";
+            
+            const mainImg = document.createElement('img');
+            mainImg.id = `focus-main-${index}`;
+            mainImg.src = m.images[0];
+            mainImg.title = "点击查看安全无码大图";
+            mainImg.style.cssText = "width: 100%; border-radius: 8px; object-fit: contain; max-height: 550px; cursor: pointer; transition: opacity 0.2s ease-in-out; background: var(--bg-input); border: 1px solid var(--border-color); box-shadow: 0 2px 10px rgba(0,0,0,0.05);";
+            mainImg.onclick = () => openFullImageFromBase64(mainImg.src);
+            
+            // 底部高级控制操作面板
+            const controls = document.createElement('div');
+            controls.style.cssText = "display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;";
+            controls.innerHTML = `
+                <button style="flex: 1; padding: 10px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-input); color: var(--text-main); cursor: pointer; font-weight: 500; transition: all 0.2s; white-space: nowrap;" onmouseover="this.style.backgroundColor='var(--bg-hover)'" onmouseout="this.style.backgroundColor='var(--bg-input)'" onclick="saveToPersonalLibrary(document.getElementById('focus-main-${index}').src, ${index})">💾 保存至素材库</button>
+                <button style="flex: 1.5; padding: 10px; border-radius: 8px; border: none; background: linear-gradient(135deg, #00C6ff, #0072ff); color: white; cursor: pointer; font-weight: bold; box-shadow: 0 4px 12px rgba(0, 114, 255, 0.25); white-space: nowrap; transition: all 0.2s;" onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 6px 16px rgba(0, 114, 255, 0.4)';" onmouseout="this.style.transform='none'; this.style.boxShadow='0 4px 12px rgba(0, 114, 255, 0.25)';" onclick="downloadSingleImage(document.getElementById('focus-main-${index}').src, 0)">⬇️ 下载当前原图</button>
+                <button style="flex: 1; padding: 10px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-input); color: var(--text-main); cursor: pointer; font-weight: 500; transition: all 0.2s; white-space: nowrap;" onmouseover="this.style.backgroundColor='var(--bg-hover)'" onmouseout="this.style.backgroundColor='var(--bg-input)'" onclick="downloadGalleryZip(${index})">📦 打包全部 (ZIP)</button>
+            `;
+            
+            mainArea.appendChild(mainImg);
+            mainArea.appendChild(controls);
+            galleryDiv.appendChild(mainArea);
+
+            // 右侧缩略图轨道（只有在生成了多张图时才会出现）
+            if (m.images.length > 1) {
+                const strip = document.createElement('div');
+                strip.style.cssText = "width: 80px; display: flex; flex-direction: column; gap: 8px; max-height: 600px; overflow-y: auto; padding-right: 4px;";
+                
+                m.images.forEach((imgBase64, imgIndex) => {
+                    const thumb = document.createElement('img');
+                    thumb.src = imgBase64;
+                    thumb.className = `focus-thumb-${index}`;
+                    thumb.title = `查看第 ${imgIndex + 1} 张`;
+                    // 第一张图默认激活
+                    thumb.style.cssText = `width: 100%; height: 80px; object-fit: cover; border-radius: 6px; cursor: pointer; transition: all 0.2s; border: 2px solid ${imgIndex === 0 ? '#0072ff' : 'transparent'}; opacity: ${imgIndex === 0 ? '1' : '0.5'}; box-sizing: border-box;`;
+                    
+                    // 悬停动画
+                    thumb.onmouseover = () => { if (thumb.style.borderColor === 'transparent') thumb.style.opacity = '0.8'; };
+                    thumb.onmouseout = () => { if (thumb.style.borderColor === 'transparent') thumb.style.opacity = '0.5'; };
+                    
+                    // 点击切换大图动效
+                    thumb.onclick = () => {
+                        mainImg.style.opacity = '0.3'; // 大图渐出
+                        setTimeout(() => {
+                            mainImg.src = imgBase64; // 替换数据
+                            mainImg.style.opacity = '1'; // 大图渐入
+                        }, 150);
+                        
+                        // 还原所有小图状态
+                        document.querySelectorAll(`.focus-thumb-${index}`).forEach(t => {
+                            t.style.borderColor = 'transparent';
+                            t.style.opacity = '0.5';
+                        });
+                        // 点亮当前选中的小图
+                        thumb.style.borderColor = '#0072ff';
+                        thumb.style.opacity = '1';
+                    };
+                    strip.appendChild(thumb);
+                });
+                galleryDiv.appendChild(strip);
+            }
+            
             contentWrapper.appendChild(galleryDiv);
         }
         
