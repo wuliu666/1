@@ -179,21 +179,23 @@
                 <div id="imageModelList" style="margin-bottom: 15px; max-height: 300px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px;">
                     </div>
                 <div style="display: flex; gap: 8px; border-top: 1px dashed var(--border-color); padding-top: 15px;">
-                    <select id="newImageModelSource" style="padding:8px; border-radius:6px; border:1px solid var(--border-color); font-size:0.85rem; background:var(--bg-input); color:var(--text-main); outline:none;" title="选择此生图模型要走哪条中转 API 通道">
+                    <select id="newImageModelSource" onchange="updateImageModelDropdown()" style="padding:8px; border-radius:6px; border:1px solid var(--border-color); font-size:0.85rem; background:var(--bg-input); color:var(--text-main); outline:none;" title="第一步：选择此生图模型要走哪条 API 通道">
                         <option value="geeknow">🚀 GeekNow 中转</option>
                         <option value="grsai">⚡ GRSAI 中转</option>
                         <option value="gemini">🌐 官方 Gemini 直连</option>
                     </select>
-                    <input type="text" id="newImageModelId" placeholder="底层接口标识 (如 nanopro)" style="flex:1; padding:8px 12px; border-radius:6px; border:1px solid var(--border-color); font-size:0.85rem; background:var(--bg-input); color:var(--text-main); outline:none;">
-                    <input type="text" id="newImageModelName" placeholder="前端自定义名称 (如 ✨推荐 Nano)" style="flex:1; padding:8px 12px; border-radius:6px; border:1px solid var(--border-color); font-size:0.85rem; background:var(--bg-input); color:var(--text-main); outline:none;">
-                    <button class="nav-btn" onclick="addModel('image')" style="padding: 8px 20px; font-weight: bold;">➕ 添加上架</button>
+                    <select id="newImageModelId" style="flex:1; padding:8px 12px; border-radius:6px; border:1px solid var(--border-color); font-size:0.85rem; background:var(--bg-input); color:var(--text-main); outline:none;" title="第二步：选择该通道下已登记的生图引擎">
+                        <option value="">请先在上方通道中添加生图模型</option>
+                    </select>
+                    <input type="text" id="newImageModelName" placeholder="前端展示名 (如 ✨推荐 MJ-V6)" style="flex:1; padding:8px 12px; border-radius:6px; border:1px solid var(--border-color); font-size:0.85rem; background:var(--bg-input); color:var(--text-main); outline:none;" title="第三步：起一个好看的名字展示在客户端">
+                    <button class="nav-btn" onclick="addModel('image')" style="padding: 8px 20px; font-weight: bold;">➕ 绑定上架</button>
                 </div>
             </div>
             
             <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 15px;">* 提示：普通文本对话大模型，请前往【🌐 API 通道】面板挂载。</p>
         </div>
       <div id="adminTab-api" class="admin-tab-content" style="display: none;">
-            <p style="font-size:0.8rem; color:var(--text-secondary); margin-bottom: 15px;">配置对话通道及挂载文本模型。此处模型将全部自动注入聊天系统。</p>
+            <p style="font-size:0.8rem; color:var(--text-secondary); margin-bottom: 15px;">全网大模型底层登记站：在此添加您的底层模型并打上标签。系统会自动将“💬对话”推送至聊天窗，“🎨生图”推送至生图指挥部。</p>
             
             <div style="border: 1px solid var(--border-color); border-radius: 10px; padding: 15px; margin-bottom: 12px; background: var(--bg-container);">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
@@ -204,12 +206,13 @@
                 <div class="setting-row"><label>🔑 API Key</label><input type="text" id="geminiKey" placeholder="AIzaSy..." title="系统已开启高级安全脱敏保护"></div>
                 <button class="nav-btn" onclick="testApiConnection('gemini')" id="btnTest-gemini" style="width: 100%; margin-top: 5px;">⚡ 连通性测试</button>
                 <div style="margin-top: 15px; border-top: 1px dashed var(--border-color); padding-top: 15px;">
-                    <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">📦 挂载对话模型：</div>
+                    <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">📦 此通道底层模型池：</div>
                     <div id="modelList-gemini" style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px;"></div>
                     <div style="display: flex; gap: 6px;">
-                        <input type="text" id="newModelId-gemini" placeholder="标识(如 gemini-1.5-pro)" style="flex:1; padding:6px; border-radius:6px; border:1px solid var(--border-color); font-size:0.8rem; background:var(--bg-input); color:var(--text-main);">
-                        <input type="text" id="newModelName-gemini" placeholder="显示名" style="flex:1; padding:6px; border-radius:6px; border:1px solid var(--border-color); font-size:0.8rem; background:var(--bg-input); color:var(--text-main);">
-                        <button class="nav-btn" onclick="addChannelModel('gemini')" style="padding: 6px 12px; font-size:0.85rem;">➕ 添加</button>
+                        <select id="newModelType-gemini" style="padding:6px; border-radius:6px; border:1px solid var(--border-color); font-size:0.8rem; background:var(--bg-input); color:var(--text-main); outline:none;"><option value="chat">💬 对话</option><option value="image">🎨 生图</option></select>
+                        <input type="text" id="newModelId-gemini" placeholder="底层接口标识" style="flex:1; padding:6px; border-radius:6px; border:1px solid var(--border-color); font-size:0.8rem; background:var(--bg-input); color:var(--text-main);">
+                        <input type="text" id="newModelName-gemini" placeholder="备注别名" style="flex:1; padding:6px; border-radius:6px; border:1px solid var(--border-color); font-size:0.8rem; background:var(--bg-input); color:var(--text-main);">
+                        <button class="nav-btn" onclick="addChannelModel('gemini')" style="padding: 6px 12px; font-size:0.85rem;">➕ 录入</button>
                     </div>
                 </div>
             </div>
@@ -226,12 +229,13 @@
                     <button class="nav-btn" onclick="checkBalance('geeknow')" id="btnBal-geeknow" style="flex: 1; border-color: #ff9500; color: #ff9500;">💰 查询余额</button>
                 </div>
                 <div style="margin-top: 15px; border-top: 1px dashed var(--border-color); padding-top: 15px;">
-                    <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">📦 挂载对话模型：</div>
+                    <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">📦 此通道底层模型池：</div>
                     <div id="modelList-geeknow" style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px;"></div>
                     <div style="display: flex; gap: 6px;">
-                        <input type="text" id="newModelId-geeknow" placeholder="标识(如 gpt-4o)" style="flex:1; padding:6px; border-radius:6px; border:1px solid var(--border-color); font-size:0.8rem; background:var(--bg-input); color:var(--text-main);">
-                        <input type="text" id="newModelName-geeknow" placeholder="显示名" style="flex:1; padding:6px; border-radius:6px; border:1px solid var(--border-color); font-size:0.8rem; background:var(--bg-input); color:var(--text-main);">
-                        <button class="nav-btn" onclick="addChannelModel('geeknow')" style="padding: 6px 12px; font-size:0.85rem;">➕ 添加</button>
+                        <select id="newModelType-geeknow" style="padding:6px; border-radius:6px; border:1px solid var(--border-color); font-size:0.8rem; background:var(--bg-input); color:var(--text-main); outline:none;"><option value="chat">💬 对话</option><option value="image">🎨 生图</option></select>
+                        <input type="text" id="newModelId-geeknow" placeholder="底层接口标识" style="flex:1; padding:6px; border-radius:6px; border:1px solid var(--border-color); font-size:0.8rem; background:var(--bg-input); color:var(--text-main);">
+                        <input type="text" id="newModelName-geeknow" placeholder="备注别名" style="flex:1; padding:6px; border-radius:6px; border:1px solid var(--border-color); font-size:0.8rem; background:var(--bg-input); color:var(--text-main);">
+                        <button class="nav-btn" onclick="addChannelModel('geeknow')" style="padding: 6px 12px; font-size:0.85rem;">➕ 录入</button>
                     </div>
                 </div>
             </div>
@@ -248,12 +252,13 @@
                     <button class="nav-btn" onclick="checkBalance('grsai')" id="btnBal-grsai" style="flex: 1; border-color: #ff9500; color: #ff9500;">💰 查询余额</button>
                 </div>
                 <div style="margin-top: 15px; border-top: 1px dashed var(--border-color); padding-top: 15px;">
-                    <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">📦 挂载对话模型：</div>
+                    <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">📦 此通道底层模型池：</div>
                     <div id="modelList-grsai" style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px;"></div>
                     <div style="display: flex; gap: 6px;">
-                        <input type="text" id="newModelId-grsai" placeholder="标识(如 gpt-4o)" style="flex:1; padding:6px; border-radius:6px; border:1px solid var(--border-color); font-size:0.8rem; background:var(--bg-input); color:var(--text-main);">
-                        <input type="text" id="newModelName-grsai" placeholder="显示名" style="flex:1; padding:6px; border-radius:6px; border:1px solid var(--border-color); font-size:0.8rem; background:var(--bg-input); color:var(--text-main);">
-                        <button class="nav-btn" onclick="addChannelModel('grsai')" style="padding: 6px 12px; font-size:0.85rem;">➕ 添加</button>
+                        <select id="newModelType-grsai" style="padding:6px; border-radius:6px; border:1px solid var(--border-color); font-size:0.8rem; background:var(--bg-input); color:var(--text-main); outline:none;"><option value="chat">💬 对话</option><option value="image">🎨 生图</option></select>
+                        <input type="text" id="newModelId-grsai" placeholder="底层接口标识" style="flex:1; padding:6px; border-radius:6px; border:1px solid var(--border-color); font-size:0.8rem; background:var(--bg-input); color:var(--text-main);">
+                        <input type="text" id="newModelName-grsai" placeholder="备注别名" style="flex:1; padding:6px; border-radius:6px; border:1px solid var(--border-color); font-size:0.8rem; background:var(--bg-input); color:var(--text-main);">
+                        <button class="nav-btn" onclick="addChannelModel('grsai')" style="padding: 6px 12px; font-size:0.85rem;">➕ 录入</button>
                     </div>
                 </div>
             </div>

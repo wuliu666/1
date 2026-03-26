@@ -69,9 +69,9 @@ function toggleKeyVisibility() { const el = document.getElementById('secretKey')
 function clearKeyInput() { document.getElementById('secretKey').value = ''; document.getElementById('secretKey').type = 'password'; }
 function onApiSourceChange() {
     const source = document.getElementById('apiSourceSelect').value; const ms = document.getElementById('modelSelect'); ms.innerHTML = '';
-    // 聊天通道仅读取该 channelId 下的数组数据，不再判断任何 type
+    // 自动过滤，确保标记为“生图”的模型绝对不会出现在普通文本聊天框里
     if(dynamicModels[source] && dynamicModels[source].length > 0) { 
-        dynamicModels[source].forEach(m => ms.innerHTML += `<option value="${m.id}">${m.name}</option>`); 
+        dynamicModels[source].filter(m => !m.type || m.type === 'chat').forEach(m => ms.innerHTML += `<option value="${m.id}">${m.name}</option>`); 
     } 
     if(ms.innerHTML === '') { ms.innerHTML = `<option value="">无可用对话模型</option>`; }
     if(currentUserKey) { localStorage.setItem('api_source_' + currentUserKey, source); changeModel(); }
@@ -194,59 +194,72 @@ function renderChannelModels(channelId) {
     const models = dynamicModels[channelId] || [];
     if(models.length === 0) { container.innerHTML = `<span style="font-size:0.8rem; color:var(--text-secondary);">暂无模型，请添加</span>`; return; }
     models.forEach(m => {
-        container.innerHTML += `<div style="background:var(--bg-user-msg); color:white; border-radius:15px; padding:4px 10px; font-size:0.8rem; display:flex; align-items:center; gap:6px;"><span>💬 ${m.name}</span><span style="cursor:pointer; color:#ffb3b3; font-weight:bold;" onclick="removeChannelModel('${channelId}', '${m.id}')" title="移除此模型">×</span></div>`;
+        const icon = m.type === 'image' ? '🎨' : '💬';
+        container.innerHTML += `<div style="background:var(--bg-user-msg); color:white; border-radius:15px; padding:4px 10px; font-size:0.8rem; display:flex; align-items:center; gap:6px;"><span>${icon} ${m.name}</span><span style="cursor:pointer; color:#ffb3b3; font-weight:bold;" onclick="removeChannelModel('${channelId}', '${m.id}')" title="移除此模型">×</span></div>`;
     });
 }
 
 function addChannelModel(channelId) {
     const idInput = document.getElementById(`newModelId-${channelId}`);
     const nameInput = document.getElementById(`newModelName-${channelId}`);
+    const typeInput = document.getElementById(`newModelType-${channelId}`);
     const id = idInput.value.trim(); const name = nameInput.value.trim();
+    const type = typeInput ? typeInput.value : 'chat';
     if(!id || !name) return alert('请填写完整的模型标识和显示名');
     if(!dynamicModels[channelId]) dynamicModels[channelId] = [];
     if(dynamicModels[channelId].find(m => m.id === id)) return alert('该模型标识已存在！');
-    dynamicModels[channelId].push({id, name});
+    dynamicModels[channelId].push({id, name, type});
     idInput.value = ''; nameInput.value = '';
-    renderChannelModels(channelId); onApiSourceChange();
+    renderChannelModels(channelId); onApiSourceChange(); 
+    if(typeof updateImageModelDropdown === 'function') updateImageModelDropdown();
 }
 
 function removeChannelModel(channelId, modelId) {
     if(!dynamicModels[channelId]) return;
     dynamicModels[channelId] = dynamicModels[channelId].filter(m => m.id !== modelId);
     renderChannelModels(channelId); onApiSourceChange();
+    if(typeof updateImageModelDropdown === 'function') updateImageModelDropdown();
 }
 
 function updateAdminModelFilterUI(custom_channels = []) {
     const filter = document.getElementById('newImageModelSource');
     if(!filter) return;
-    
-    // 记住当前选中的值，避免刷新时跳回默认值
     const currentVal = filter.value;
-    
-    // 初始化三个固定的系统内置通道
     let optionsHTML = `
         <option value="geeknow">🚀 GeekNow 中转</option>
         <option value="grsai">⚡ GRSAI 中转</option>
         <option value="gemini">🌐 官方 Gemini 直连</option>
     `;
-    
-    // 动态遍历并追加所有在【API通道】里配置的自定义通道
     if (custom_channels && custom_channels.length > 0) {
         custom_channels.forEach(cc => {
             optionsHTML += `<option value="${cc.id}">🔌 ${cc.name} (自定义)</option>`;
             if (!dynamicModels[cc.id]) dynamicModels[cc.id] = [];
         });
     }
-    
-    // 将生成的 HTML 注入下拉框
     filter.innerHTML = optionsHTML;
-    
     localStorage.setItem('sys_dynamic_models', JSON.stringify(dynamicModels));
-    
-    // 尝试恢复之前选中的值，如果该通道已被删除，则默认选中 geeknow
     filter.value = Array.from(filter.options).some(o => o.value === currentVal) ? currentVal : 'geeknow';
     
+    updateImageModelDropdown();
     renderAdminModels();
+}
+
+function updateImageModelDropdown() {
+    const filter = document.getElementById('newImageModelSource');
+    const idSelect = document.getElementById('newImageModelId');
+    if(!filter || !idSelect) return;
+    const channelId = filter.value;
+    const models = dynamicModels[channelId] || [];
+    const imageModels = models.filter(m => m.type === 'image'); // 精准筛选出生图模型
+    
+    idSelect.innerHTML = '';
+    if(imageModels.length === 0) {
+        idSelect.innerHTML = '<option value="">⚠️ 此通道下暂无生图模型</option>';
+    } else {
+        imageModels.forEach(m => {
+            idSelect.innerHTML += `<option value="${m.id}">${m.id} (${m.name})</option>`;
+        });
+    }
 }
 
 function addCustomChannelUI(data = null) {
@@ -271,12 +284,13 @@ function addCustomChannelUI(data = null) {
                 <button class="nav-btn" onclick="checkCustomBalance('${id}', this)" style="flex: 1; border-color: #ff9500; color: #ff9500;">💰 查询余额</button>
             </div>
             <div style="margin-top: 15px; border-top: 1px dashed var(--border-color); padding-top: 15px;">
-                    <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">📦 挂载对话模型：</div>
+                    <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">📦 挂载底层模型池：</div>
                     <div id="modelList-${id}" style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px;"></div>
                     <div style="display: flex; gap: 6px;">
-                        <input type="text" id="newModelId-${id}" placeholder="标识" style="flex:1; padding:6px; border-radius:6px; border:1px solid var(--border-color); font-size:0.8rem; background:var(--bg-input); color:var(--text-main);">
-                        <input type="text" id="newModelName-${id}" placeholder="显示名" style="flex:1; padding:6px; border-radius:6px; border:1px solid var(--border-color); font-size:0.8rem; background:var(--bg-input); color:var(--text-main);">
-                        <button class="nav-btn" onclick="addChannelModel('${id}')" style="padding: 6px 12px; font-size:0.85rem;">➕ 添加</button>
+                        <select id="newModelType-${id}" style="padding:6px; border-radius:6px; border:1px solid var(--border-color); font-size:0.8rem; background:var(--bg-input); color:var(--text-main); outline:none;"><option value="chat">💬 对话</option><option value="image">🎨 生图</option></select>
+                        <input type="text" id="newModelId-${id}" placeholder="底层标识" style="flex:1; padding:6px; border-radius:6px; border:1px solid var(--border-color); font-size:0.8rem; background:var(--bg-input); color:var(--text-main);">
+                        <input type="text" id="newModelName-${id}" placeholder="别名" style="flex:1; padding:6px; border-radius:6px; border:1px solid var(--border-color); font-size:0.8rem; background:var(--bg-input); color:var(--text-main);">
+                        <button class="nav-btn" onclick="addChannelModel('${id}')" style="padding: 6px 12px; font-size:0.85rem;">➕ 录入</button>
                     </div>
                 </div>
         </div>

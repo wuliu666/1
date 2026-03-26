@@ -34,6 +34,11 @@
                     "id": "nano-banana-2",
                     "name": "nano-banana-2",
                     "type": "image"
+                },
+                {
+                    "id": "1",
+                    "name": "1",
+                    "type": "image"
                 }
             ],
             "image": [
