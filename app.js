@@ -851,10 +851,10 @@ function renderAssetLibraryTool(mode) {
                     </div>
                 </div>
                 
-                <div style="display:flex; gap:10px; align-items: center; flex-wrap: wrap; justify-content: flex-end;">
+                <div id="libraryHeaderBtns" style="display: ${isBulkMode ? 'none' : 'flex'}; gap:10px; align-items: center; flex-wrap: wrap; justify-content: flex-end;">
                     `;
                     
-                    if (isPersonal && !isBulkMode) {
+                    if (isPersonal) {
                         html += `
                         <button onclick="exportLocalLibrary()" style="background: transparent; color: var(--text-main); border: 1px dashed var(--border-color); padding: 8px 12px; border-radius: 8px; cursor: pointer; font-size: 0.85rem; transition: 0.2s;" onmouseover="this.style.backgroundColor='var(--bg-hover)'" onmouseout="this.style.backgroundColor='transparent'" title="打包下载到硬盘">📥 备份数据</button>
                         <button onclick="triggerImportLocalLibrary()" style="background: transparent; color: var(--text-main); border: 1px dashed var(--border-color); padding: 8px 12px; border-radius: 8px; cursor: pointer; font-size: 0.85rem; transition: 0.2s;" onmouseover="this.style.backgroundColor='var(--bg-hover)'" onmouseout="this.style.backgroundColor='transparent'" title="从备份文件恢复">📤 恢复数据</button>
@@ -862,8 +862,8 @@ function renderAssetLibraryTool(mode) {
                         `;
                     }
 
-                    if(!isBulkMode) { html += `<button onclick="toggleBulkMode()" style="background: var(--bg-input); color: var(--text-main); border: 1px solid var(--border-color); padding: 8px 16px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 0.9rem;">☑️ 批量管理</button>`; }
-                    if (canUpload && !isBulkMode) { html += `<button id="uploadNewAssetBtn" onclick="document.getElementById('batchAssetUpload').click()" style="background: var(--bg-user-msg); color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 0.9rem;">＋ 添加新素材</button>`; }
+                    html += `<button onclick="toggleBulkMode()" style="background: var(--bg-input); color: var(--text-main); border: 1px solid var(--border-color); padding: 8px 16px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 0.9rem;">☑️ 批量管理</button>`;
+                    if (canUpload) { html += `<button id="uploadNewAssetBtn" onclick="document.getElementById('batchAssetUpload').click()" style="background: var(--bg-user-msg); color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 0.9rem;">＋ 添加新素材</button>`; }
                     html += `
                 </div>
             </div>
@@ -875,12 +875,11 @@ function renderAssetLibraryTool(mode) {
             </div>
             ` : ''}
 
-            <div style="display: flex; gap: 10px; margin-bottom: 24px;">
-                <button class="nav-btn ${currentAssetFilter === 'all' ? 'active' : ''}" style="padding: 8px 16px; font-size: 0.9rem;" onclick="filterAssets('all')">全部展示</button>
-                <button class="nav-btn ${currentAssetFilter === 'character' ? 'active' : ''}" style="padding: 8px 16px; font-size: 0.9rem;" onclick="filterAssets('character')">👤 角色设定</button>
-                <button class="nav-btn ${currentAssetFilter === 'scene' ? 'active' : ''}" style="padding: 8px 16px; font-size: 0.9rem;" onclick="filterAssets('scene')">🏞️ 场景概念</button>
+            <div id="filterTabGroup" style="display: flex; gap: 10px; margin-bottom: 24px;">
+                <button class="nav-btn ${currentAssetFilter === 'all' ? 'active' : ''}" data-filter="all" style="padding: 8px 16px; font-size: 0.9rem;" onclick="filterAssets('all')">全部展示</button>
+                <button class="nav-btn ${currentAssetFilter === 'character' ? 'active' : ''}" data-filter="character" style="padding: 8px 16px; font-size: 0.9rem;" onclick="filterAssets('character')">👤 角色设定</button>
+                <button class="nav-btn ${currentAssetFilter === 'scene' ? 'active' : ''}" data-filter="scene" style="padding: 8px 16px; font-size: 0.9rem;" onclick="filterAssets('scene')">🏞️ 场景概念</button>
             </div>
-
             <div id="assetGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 20px;"></div>
         </div>
     </div>`;
@@ -922,10 +921,21 @@ async function handleBatchAssetUpload(input) {
     }
     
     addAuditLog(`上传了 ${upCount} 张图片`); input.value = ''; if(uploadBtn) uploadBtn.disabled = false;
-    showToast("上传成功"); document.getElementById('chatBox').innerHTML = renderAssetLibraryTool(currentLibraryMode); renderAssetGrid();
+    showToast("上传成功"); renderAssetGrid();
 }
 
-function filterAssets(type) { currentAssetFilter = type; if(currentChatId === TEAM_ASSET_ID || currentChatId === PERSONAL_ASSET_ID) { document.getElementById('chatBox').innerHTML = renderAssetLibraryTool(currentLibraryMode); renderAssetGrid(); } }
+function filterAssets(type) { 
+    currentAssetFilter = type; 
+    if(currentChatId === TEAM_ASSET_ID || currentChatId === PERSONAL_ASSET_ID) { 
+        const tabs = document.querySelectorAll('#filterTabGroup .nav-btn');
+        if(tabs.length > 0) {
+            tabs.forEach(btn => btn.classList.remove('active'));
+            const activeBtn = document.querySelector(`#filterTabGroup .nav-btn[data-filter="${type}"]`);
+            if(activeBtn) activeBtn.classList.add('active');
+        }
+        renderAssetGrid(); 
+    } 
+}
 
 function drawTeamWatermark(canvas, ctx) {
     ctx.save(); ctx.font = "bold 32px sans-serif"; ctx.fillStyle = "rgba(255, 255, 255, 0.12)"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.shadowColor = "rgba(0,0,0,0.2)"; ctx.shadowBlur = 2;
@@ -973,7 +983,27 @@ function renderAssetGrid() {
     });
 }
 
-function toggleBulkMode() { isBulkMode = !isBulkMode; selectedAssetIds.clear(); document.getElementById('chatBox').innerHTML = renderAssetLibraryTool(currentLibraryMode); renderAssetGrid(); }
+function toggleBulkMode() { 
+    isBulkMode = !isBulkMode; 
+    selectedAssetIds.clear(); 
+    
+    const headerBtns = document.getElementById('libraryHeaderBtns');
+    if (headerBtns) headerBtns.style.display = isBulkMode ? 'none' : 'flex';
+
+    const toolbar = document.getElementById('bulkToolbar');
+    if (toolbar) {
+        if (isBulkMode) { 
+            toolbar.style.display = 'flex'; 
+            document.getElementById('bulkSelectCount').innerText = `已选择 0 项`; 
+            const canManage = currentLibraryMode === 'personal' || isAdmin; 
+            document.getElementById('bulkCategoryBtn').style.display = canManage ? 'inline-block' : 'none'; 
+            document.getElementById('bulkDeleteBtn').style.display = canManage ? 'inline-block' : 'none'; 
+        } else { 
+            toolbar.style.display = 'none'; 
+        }
+    }
+    renderAssetGrid(); 
+}
 function toggleSelectAsset(id) { if (selectedAssetIds.has(id)) selectedAssetIds.delete(id); else selectedAssetIds.add(id); document.getElementById('bulkSelectCount').innerText = `已选择 ${selectedAssetIds.size} 项`; renderAssetGrid(); }
 function selectAllAssets() {
     const sourceArray = currentLibraryMode === 'team' ? teamAssets : personalAssets;
@@ -1014,7 +1044,7 @@ function executeBulkDelete() {
             await fetch(`${API_BASE_URL}/api/delete_asset`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ids: idsToDelete}) });
             if (currentLibraryMode === 'team') { teamAssets = teamAssets.filter(a => !selectedAssetIds.has(a.id)); } else { personalAssets = personalAssets.filter(a => !selectedAssetIds.has(a.id)); } addAuditLog(`批量删除了 ${idsToDelete.length} 个素材`); 
         } catch(e) {}
-        toggleBulkMode(); document.getElementById('chatBox').innerHTML = renderAssetLibraryTool(currentLibraryMode); renderAssetGrid();
+        toggleBulkMode();
     });
 }
 function openBulkCategoryModal() { if(selectedAssetIds.size === 0) return alert("请先选择素材！"); document.getElementById('bulkCategoryModal').classList.add('show'); }
@@ -1025,7 +1055,7 @@ async function confirmBulkCategory() {
         await fetch(`${API_BASE_URL}/api/bulk_update_category`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ids: idsToUpdate, type: newType}) });
         const sourceArray = currentLibraryMode === 'team' ? teamAssets : personalAssets; sourceArray.forEach(asset => { if(selectedAssetIds.has(asset.id)) { asset.type = newType; } }); addAuditLog(`批量修改了 ${idsToUpdate.length} 个分类`); 
     } catch(e) {}
-    closeBulkCategoryModal(); toggleBulkMode(); document.getElementById('chatBox').innerHTML = renderAssetLibraryTool(currentLibraryMode); renderAssetGrid();
+    closeBulkCategoryModal(); toggleBulkMode();
 }
 
 function editAsset(id) { editingAssetId = id; const sourceArray = currentLibraryMode === 'team' ? teamAssets : personalAssets; const asset = sourceArray.find(a => a.id === id); if(!asset) return; document.getElementById('editAssetTitle').value = asset.title; document.getElementById('editAssetType').value = asset.type; document.getElementById('editAssetPrompt').value = asset.prompt || ''; document.getElementById('editAssetModal').classList.add('show'); }
@@ -1033,16 +1063,15 @@ async function saveAssetEdit() {
     const sourceArray = currentLibraryMode === 'team' ? teamAssets : personalAssets; const asset = sourceArray.find(a => a.id === editingAssetId); if(!asset) return; 
     const newTitle = document.getElementById('editAssetTitle').value.trim(); const newType = document.getElementById('editAssetType').value; const newPrompt = document.getElementById('editAssetPrompt').value.trim(); 
     try { await fetch(`${API_BASE_URL}/api/update_asset`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({id: asset.id, title: newTitle, type: newType, prompt: newPrompt}) }); asset.title = newTitle; asset.type = newType; asset.prompt = newPrompt; } catch(e) {}
-    closeEditAssetModal(); document.getElementById('chatBox').innerHTML = renderAssetLibraryTool(currentLibraryMode); renderAssetGrid(); 
+    closeEditAssetModal(); renderAssetGrid(); 
 }
 function closeEditAssetModal() { document.getElementById('editAssetModal').classList.remove('show'); }
 function deleteAsset(id) { 
     openConfirmModal(async () => { 
         try { await fetch(`${API_BASE_URL}/api/delete_asset`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ids: [id]}) }); if (currentLibraryMode === 'team') { teamAssets = teamAssets.filter(a => a.id !== id); } else { personalAssets = personalAssets.filter(a => a.id !== id); } addAuditLog(`删除了素材`); } catch(e) {}
-        document.getElementById('chatBox').innerHTML = renderAssetLibraryTool(currentLibraryMode); renderAssetGrid(); 
+        renderAssetGrid(); 
     }); 
 }
-
 function useAssetInGen(assetId) { const sourceArray = currentLibraryMode === 'team' ? teamAssets : personalAssets; const asset = sourceArray.find(a => a.id === assetId); if (!asset) return; extractAndGenerateImage(asset.prompt || '', API_BASE_URL + asset.image); }
 function extractAndGenerateImage(promptText, referenceImage = null) {
     switchChat(IMAGE_GEN_ID); 
