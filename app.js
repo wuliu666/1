@@ -618,16 +618,156 @@ async function clearAuditLogs() {
     } catch(e) { alert("清空失败"); }
 }
 
+// ==================== 新增：个人数据库全量备份与跨设备恢复引擎 ====================
+async function exportLocalLibrary() {
+    await initLocalDB(); const allAssets = await localDB.getAll();
+    if (allAssets.length === 0) return alert("您的个人素材库是空的，无需备份！");
+    
+    // 粗略计算一下整个数据库打包后大概有多大 (将字节转为 MB)
+    const dataStr = JSON.stringify(allAssets);
+    const estimatedSizeMB = (new Blob([dataStr]).size / (1024 * 1024)).toFixed(2);
+    
+    // 💡 强提醒：明确告诉用户这会下载新文件，并建议他们去删旧文件
+    const confirmMsg = `当前图库共 ${allAssets.length} 项素材，预计全量数据库备份大小约 ${estimatedSizeMB} MB。\n\n⚠️ 【温馨提示】\n受限于浏览器安全规则，每次备份都会生成一个全新的数据库文件。\n为防止占用您过多的电脑存储空间，建议您在下载完成后，手动将之前的旧备份文件删除！\n\n是否继续下载本次备份？`;
+    
+    if (!confirm(confirmMsg)) return;
+
+    showToast("📦 正在生成全量数据库文件，请稍候...");
+    const blob = new Blob([dataStr], {type: "application/json"});
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url; 
+    
+    // 给文件名加上精确到秒的时间戳，方便用户换电脑时辨认哪个是最新的
+    const timeStr = new Date().toLocaleTimeString('zh-CN', {hour12:false}).replace(/:/g, '');
+    const dateStr = new Date().toISOString().split('T')[0];
+    link.download = `九雨本地数据库备份_${dateStr}_${timeStr}.json`;
+    
+    link.click(); URL.revokeObjectURL(url);
+    showToast("✅ 数据库备份已完成！换电脑时可直接导入此文件恢复。");
+}
+
+function triggerImportLocalLibrary() {
+    const input = document.createElement('input'); input.type = 'file'; input.accept = '.json';
+    input.onchange = e => {
+        const file = e.target.files[0]; if(!file) return;
+        const reader = new FileReader();
+        reader.onload = async ev => {
+            try {
+                const importedAssets = JSON.parse(ev.target.result);
+                if (!Array.isArray(importedAssets)) throw new Error("无效格式");
+                
+                showToast(`⏳ 正在跨设备恢复 ${importedAssets.length} 个素材，请勿关闭页面...`);
+                await initLocalDB();
+                // 遍历备份文件，将所有数据重新注入当前电脑的底层数据库中
+                for(let asset of importedAssets) { await localDB.save(asset); } 
+                
+                showToast("✅ 数据库全量恢复成功！即将为您刷新界面...");
+                setTimeout(() => location.reload(), 1500); // 刷新重载数据，分类和图全回来
+            } catch(err) { alert("❌ 备份文件损坏或非本系统导出的标准数据库格式！"); }
+        }; reader.readAsText(file);
+    }; input.click();
+}
+// =================================================================================
+
+// ==================== 个人数据库全量备份与跨设备恢复引擎 ====================
+async function exportLocalLibrary() {
+    await initLocalDB(); const allAssets = await localDB.getAll();
+    if (allAssets.length === 0) return alert("您的个人素材库是空的，无需备份！");
+    
+    // 粗略计算一下整个数据库打包后大概有多大 (将字节转为 MB)
+    const dataStr = JSON.stringify(allAssets);
+    const estimatedSizeMB = (new Blob([dataStr]).size / (1024 * 1024)).toFixed(2);
+    
+    // 💡 强提醒：明确告诉用户这会下载新文件，并建议他们去删旧文件
+    const confirmMsg = `当前图库共 ${allAssets.length} 项素材，预计全量数据库备份大小约 ${estimatedSizeMB} MB。\n\n⚠️ 【温馨提示】\n受限于浏览器安全规则，每次备份都会生成一个全新的数据库文件。\n为防止占用您过多的电脑存储空间，建议您在下载完成后，手动将之前的旧备份文件删除！\n\n是否继续下载本次备份？`;
+    
+    if (!confirm(confirmMsg)) return;
+
+    showToast("📦 正在生成全量数据库文件，请稍候...");
+    const blob = new Blob([dataStr], {type: "application/json"});
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url; 
+    
+    // 给文件名加上精确到秒的时间戳，方便用户换电脑时辨认哪个是最新的
+    const timeStr = new Date().toLocaleTimeString('zh-CN', {hour12:false}).replace(/:/g, '');
+    const dateStr = new Date().toISOString().split('T')[0];
+    link.download = `九雨本地数据库备份_${dateStr}_${timeStr}.json`;
+    
+    link.click(); URL.revokeObjectURL(url);
+    showToast("✅ 数据库备份已完成！换电脑时可直接导入此文件恢复。");
+}
+
+function triggerImportLocalLibrary() {
+    const input = document.createElement('input'); input.type = 'file'; input.accept = '.json';
+    input.onchange = e => {
+        const file = e.target.files[0]; if(!file) return;
+        const reader = new FileReader();
+        reader.onload = async ev => {
+            try {
+                const importedAssets = JSON.parse(ev.target.result);
+                if (!Array.isArray(importedAssets)) throw new Error("无效格式");
+                
+                showToast(`⏳ 正在跨设备恢复 ${importedAssets.length} 个素材，请勿关闭页面...`);
+                await initLocalDB();
+                // 遍历备份文件，将所有数据重新注入当前电脑的底层数据库中
+                for(let asset of importedAssets) { await localDB.save(asset); } 
+                
+                showToast("✅ 数据库全量恢复成功！即将为您刷新界面...");
+                setTimeout(() => location.reload(), 1500); // 刷新重载数据，分类和图全回来
+            } catch(err) { alert("❌ 备份文件损坏或非本系统导出的标准数据库格式！"); }
+        }; reader.readAsText(file);
+    }; input.click();
+}
+// =================================================================================
+
 function renderAssetLibraryTool(mode) {
     currentLibraryMode = mode; const isPersonal = mode === 'personal';
     const titleText = isPersonal ? '🔒 我的个人专属素材库' : '📁 团队公共素材与角色库';
-    const descText = isPersonal ? '您在此处上传的真实图片会直接安全存入服务器硬盘，防丢防崩溃。' : '由管理员维护的高质量基准素材，全员云端实时极速共享加载。';
     const canUpload = isPersonal || isAdmin;
 
-    let html = `<div class="hub-wrapper"><div style="max-width: 1000px; margin: 0 auto; width: 100%; padding: 30px; box-sizing: border-box; animation: pop 0.3s ease;"><div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 1px solid var(--border-color); padding-bottom: 16px;"><div><h2 style="margin: 0 0 6px 0;">${titleText}</h2><div style="font-size: 0.85rem; color: var(--text-secondary);">${descText}</div></div><div style="display:flex; gap:10px;">`;
-    if(!isBulkMode) { html += `<button onclick="toggleBulkMode()" style="background: var(--bg-input); color: var(--text-main); border: 1px solid var(--border-color); padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 600;">☑️ 批量操作</button>`; }
-    if (canUpload && !isBulkMode) { html += `<button id="uploadNewAssetBtn" onclick="document.getElementById('batchAssetUpload').click()" style="background: var(--bg-user-msg); color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 600;">＋ 添加新素材</button>`; }
-    html += `</div></div><div style="display: flex; gap: 10px; margin-bottom: 24px;"><button class="nav-btn ${currentAssetFilter === 'all' ? 'active' : ''}" style="padding: 8px 16px;" onclick="filterAssets('all')">全部展示</button><button class="nav-btn ${currentAssetFilter === 'character' ? 'active' : ''}" style="padding: 8px 16px;" onclick="filterAssets('character')">👤 角色设定</button><button class="nav-btn ${currentAssetFilter === 'scene' ? 'active' : ''}" style="padding: 8px 16px;" onclick="filterAssets('scene')">🏞️ 场景概念</button></div><div id="assetGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 20px;"></div></div></div>`;
+    let html = `
+    <div class="hub-wrapper">
+        <div style="max-width: 1000px; margin: 0 auto; width: 100%; padding: 30px; box-sizing: border-box; animation: pop 0.3s ease;">
+            
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; border-bottom: 1px solid var(--border-color); padding-bottom: 16px;">
+                <div>
+                    <h2 style="margin: 0 0 6px 0;">${titleText}</h2>
+                    <div style="font-size: 0.85rem; color: var(--text-secondary);">
+                        ${isPersonal ? '极速存取，0 服务器占用。' : '由管理员维护的高质量基准素材，全员云端实时极速共享加载。'}
+                    </div>
+                </div>
+                
+                <div style="display:flex; gap:10px; align-items: center; flex-wrap: wrap; justify-content: flex-end;">
+                    `;
+                    
+                    // 💡 优化：把备份和恢复按钮直接移到右上角，与添加素材平齐
+                    if (isPersonal && !isBulkMode) {
+                        html += `
+                        <button onclick="exportLocalLibrary()" style="background: transparent; color: var(--text-main); border: 1px dashed var(--border-color); padding: 8px 12px; border-radius: 8px; cursor: pointer; font-size: 0.85rem; transition: 0.2s;" onmouseover="this.style.backgroundColor='var(--bg-hover)'" onmouseout="this.style.backgroundColor='transparent'" title="打包下载到硬盘">📥 备份数据</button>
+                        <button onclick="triggerImportLocalLibrary()" style="background: transparent; color: var(--text-main); border: 1px dashed var(--border-color); padding: 8px 12px; border-radius: 8px; cursor: pointer; font-size: 0.85rem; transition: 0.2s;" onmouseover="this.style.backgroundColor='var(--bg-hover)'" onmouseout="this.style.backgroundColor='transparent'" title="从备份文件恢复">📤 恢复数据</button>
+                        <div style="width: 1px; height: 20px; background: var(--border-color); margin: 0 5px;"></div>
+                        `;
+                    }
+
+                    if(!isBulkMode) { html += `<button onclick="toggleBulkMode()" style="background: var(--bg-input); color: var(--text-main); border: 1px solid var(--border-color); padding: 8px 16px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 0.9rem;">☑️ 批量管理</button>`; }
+                    if (canUpload && !isBulkMode) { html += `<button id="uploadNewAssetBtn" onclick="document.getElementById('batchAssetUpload').click()" style="background: var(--bg-user-msg); color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 0.9rem;">＋ 添加新素材</button>`; }
+                    html += `
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 10px; margin-bottom: 24px;">
+                <button class="nav-btn ${currentAssetFilter === 'all' ? 'active' : ''}" style="padding: 8px 16px; font-size: 0.9rem;" onclick="filterAssets('all')">全部展示</button>
+                <button class="nav-btn ${currentAssetFilter === 'character' ? 'active' : ''}" style="padding: 8px 16px; font-size: 0.9rem;" onclick="filterAssets('character')">👤 角色设定</button>
+                <button class="nav-btn ${currentAssetFilter === 'scene' ? 'active' : ''}" style="padding: 8px 16px; font-size: 0.9rem;" onclick="filterAssets('scene')">🏞️ 场景概念</button>
+            </div>
+
+            <div id="assetGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 20px;"></div>
+        </div>
+    </div>`;
+
+    // 批量操作工具栏逻辑
     const toolbar = document.getElementById('bulkToolbar');
     if (isBulkMode) { toolbar.style.display = 'flex'; document.getElementById('bulkSelectCount').innerText = `已选择 ${selectedAssetIds.size} 项`; const canManage = isPersonal || isAdmin; document.getElementById('bulkCategoryBtn').style.display = canManage ? 'inline-block' : 'none'; document.getElementById('bulkDeleteBtn').style.display = canManage ? 'inline-block' : 'none'; } else { toolbar.style.display = 'none'; }
     return html;
