@@ -120,7 +120,41 @@ window.fetch = async function(...args) {
          } catch(e) {}
     }
 
-    return originalFetch.apply(this, args);
+    // === 🛡️ 终极安全系统：全局请求拦截与鉴权自动注入 ===
+    if (typeof url === 'string' && (url.includes('/api/') || url.includes('/admin/') || url.includes('/chat'))) {
+        if (options.method === 'POST') {
+            // 1. 如果是普通数据请求，强制塞入密钥
+            if (options.body && typeof options.body === 'string') {
+                try {
+                    let bodyObj = JSON.parse(options.body);
+                    if (typeof currentUserKey !== 'undefined' && currentUserKey && !bodyObj.user_key && !bodyObj.password && !bodyObj.admin_key) {
+                        bodyObj.user_key = currentUserKey;
+                        bodyObj.password = currentUserKey; // 双重注入，满足不同接口
+                        options.body = JSON.stringify(bodyObj);
+                    }
+                } catch(e) {}
+            } 
+            // 2. 如果是上传文件请求，强制附加密钥字段
+            else if (options.body instanceof FormData) {
+                if (typeof currentUserKey !== 'undefined' && currentUserKey && !options.body.has('user_key')) {
+                    options.body.append('user_key', currentUserKey);
+                }
+            }
+        }
+    }
+
+    // 放行真实的网络请求
+    const response = await originalFetch.apply(this, args);
+    
+    // 🚨 核心防御熔断：如果后端大发雷霆返回 401/403 (拦截到黑客或失效账号)，前端直接踢出！
+    if (response && (response.status === 401 || response.status === 403)) {
+        console.warn("🚨 触发高危预警：请求被后端安全盾拦截！");
+        if (typeof forceLogout === 'function') {
+            forceLogout("🚨 安全警告：系统检测到您的请求存在越权行为或凭证已失效，为保护数据安全，已强制熔断连接！");
+        }
+    }
+    
+    return response;
 };
 // ========================== 拦截引擎结束 =================================
 
@@ -1987,3 +2021,114 @@ function useAssetPrompt(promptText) {
 }
 
 init();
+// =========================================================================
+// 🚀 终极权限与游客模式引擎 (直接追加到底部，自动覆盖全局生效)
+// =========================================================================
+
+// 1. 全局 UI 鉴权拦截器 (没登入直接弹窗提示)
+function checkAuth() {
+    if (!currentUserKey) {
+        showToast("⚠️ 游客模式仅供预览，请先验证密钥登入以解锁此功能！");
+        const ks = document.getElementById('keySection');
+        if (ks) ks.style.display = 'flex';
+        const sk = document.getElementById('secretKey');
+        if(sk) sk.focus();
+        return false;
+    }
+    return true;
+}
+
+// 2. 动态劫持所有核心功能按钮 (没登入绝对点不了)
+const _oldCreateNewChat = window.createNewChat || createNewChat;
+createNewChat = function() { if(checkAuth()) _oldCreateNewChat(); };
+
+const _oldCreateNewStoryboard = window.createNewStoryboard || createNewStoryboard;
+createNewStoryboard = function() { if(checkAuth()) _oldCreateNewStoryboard(); };
+
+const _oldSendMessage = window.sendMessage || sendMessage;
+sendMessage = async function() { if(checkAuth()) await _oldSendMessage(); };
+
+const _oldSendImageGenMessage = window.sendImageGenMessage || sendImageGenMessage;
+sendImageGenMessage = async function() { if(checkAuth()) await _oldSendImageGenMessage(); };
+
+const _oldHandleBatchAssetUpload = window.handleBatchAssetUpload || handleBatchAssetUpload;
+handleBatchAssetUpload = async function(input) { if(checkAuth()) await _oldHandleBatchAssetUpload(input); else input.value=''; };
+
+const _oldProcessToolImages = window.processToolImages || processToolImages;
+processToolImages = async function(mode) { if(checkAuth()) await _oldProcessToolImages(mode); };
+
+const _oldExecuteBulkDownload = window.executeBulkDownload || executeBulkDownload;
+executeBulkDownload = async function() { if(checkAuth()) await _oldExecuteBulkDownload(); };
+
+const _oldExportToPDF = window.exportToPDF || exportToPDF;
+exportToPDF = function() { if(checkAuth()) _oldExportToPDF(); };
+
+// 3. 拦截进入个人私密库
+const _oldSwitchChat = window.switchChat || switchChat;
+switchChat = function(id) {
+    if (id === PERSONAL_ASSET_ID && !checkAuth()) { _oldSwitchChat(HUB_ID); return; }
+    _oldSwitchChat(id);
+};
+
+// 4. 修复退出登录变白板，完美退回大厅
+forceLogout = function(alertMsg) {
+    if(heartbeatInterval) { clearInterval(heartbeatInterval); heartbeatInterval = null; }
+    currentUserKey = null; currentSessionToken = null;
+    document.getElementById('keySection').style.display = 'flex'; 
+    document.getElementById('headerActions').style.display = 'none'; 
+    document.getElementById('chatList').innerHTML = ''; 
+    _oldSwitchChat(HUB_ID); 
+    if(alertMsg) showToast(alertMsg);
+    if (window.innerWidth <= 768) { isSidebarCollapsed = true; document.getElementById('appSidebar')?.classList.add('collapsed'); document.getElementById('mobileOverlay')?.classList.remove('show'); }
+};
+
+// 5. 重写页面初始化，让游客能看到漂亮的界面但用不了功能
+const _oldInit = window.init || init;
+init = function() {
+    loadImageModelsToUI();
+    const lastKey = localStorage.getItem('last_used_key'); if (lastKey) document.getElementById('secretKey').value = lastKey;
+    const k = localStorage.getItem('user_secret_key');
+    if (k) { 
+        document.getElementById('secretKey').value = k; 
+        currentUserKey = k;
+        chats = JSON.parse(localStorage.getItem('chats_' + k)) || [];
+        document.getElementById('headerActions').style.display = 'flex';
+        _oldSwitchChat(HUB_ID); 
+        verifyKey(); 
+    } else { 
+        document.getElementById('keySection').style.display = 'flex'; 
+        document.getElementById('headerActions').style.display = 'none';
+        _oldSwitchChat(HUB_ID); 
+        fetchTeamAssets().then(() => { if (currentChatId === TEAM_ASSET_ID) renderAssetGrid(); });
+    }
+};
+
+// 6. 🛡️ 终极防黑客网络底层拦截盾 (强行往数据包塞密钥，防伪造请求)
+const _baseFetch = window.fetch;
+window.fetch = async function(...args) {
+    const url = args[0]; const options = args[1] || {};
+    if (typeof url === 'string' && (url.includes('/api/') || url.includes('/admin/') || url.includes('/chat'))) {
+        if (options.method === 'POST') {
+            if (options.body && typeof options.body === 'string') {
+                try {
+                    let bodyObj = JSON.parse(options.body);
+                    if (typeof currentUserKey !== 'undefined' && currentUserKey && !bodyObj.user_key && !bodyObj.password && !bodyObj.admin_key) {
+                        bodyObj.user_key = currentUserKey; bodyObj.password = currentUserKey; options.body = JSON.stringify(bodyObj);
+                    }
+                } catch(e) {}
+            } else if (options.body instanceof FormData) {
+                if (typeof currentUserKey !== 'undefined' && currentUserKey && !options.body.has('user_key')) { options.body.append('user_key', currentUserKey); }
+            }
+        }
+    }
+    const response = await _baseFetch.apply(this, args);
+    // 只要后端发现是黑客没传密钥（401/403），前端瞬间拉响警报踢下线
+    if (response && (response.status === 401 || response.status === 403)) {
+        if (typeof forceLogout === 'function') forceLogout("🚨 安全拦截：检测到非法请求，已强制熔断连接并退回游客模式！");
+    }
+    return response;
+};
+
+// 重启一次引擎，应用最高权限
+setTimeout(() => { init(); }, 50);
+// ========================== 引擎结束 =========================================

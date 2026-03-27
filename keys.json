@@ -13,7 +13,7 @@
         "gemini_enabled": true,
         "gemini_key": "",
         "gemini_proxy": "",
-        "geeknow_enabled": false,
+        "geeknow_enabled": true,
         "geeknow_url": "https://www.geeknow.top/v1",
         "geeknow_key": "",
         "grsai_enabled": true,

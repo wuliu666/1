@@ -278,6 +278,33 @@ def save_keys(data):
     with open(KEYS_FILE, 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
 
+# ================= 🛡️ 全局终极安全盾 (拦截所有非法请求) =================
+@app.before_request
+def check_auth():
+    # 放行的公共接口 (不需要验证的，比如登录和心跳)
+    if request.path in ['/verify', '/api/heartbeat'] or request.path.startswith('/static/'):
+        return None
+    
+    # 拦截所有 /api/ 开头的敏感接口（防止黑客通过接口乱发图、删素材）
+    if request.path.startswith('/api/'):
+        user_key = None
+        # 尝试从 JSON 或 FormData 中提取安全凭证
+        if request.is_json:
+            user_key = request.json.get('user_key') or request.json.get('password')
+        elif request.form:
+            user_key = request.form.get('user_key') or request.form.get('password')
+        
+        # 鉴权逻辑：无密钥、密钥造假、密钥被停用，统统杀掉请求
+        if not user_key:
+            return jsonify({"error": "非法请求：缺少安全凭证", "code": "AUTH_FAILED"}), 401
+            
+        keys = load_keys()
+        if user_key not in keys and user_key != MASTER_KEY:
+            return jsonify({"error": "非法请求：无效的密钥", "code": "AUTH_FAILED"}), 401
+        if user_key != MASTER_KEY and keys.get(user_key, {}).get("is_deleted", False):
+            return jsonify({"error": "非法请求：密钥已被停用", "code": "AUTH_FAILED"}), 403
+# =====================================================================
+
 @app.route('/api/heartbeat', methods=['POST'])
 def heartbeat():
     data = request.json
@@ -1044,3 +1071,33 @@ def clear_logs():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
+
+# ================= 🛡️ 终极安全盾 (拦截所有未登入黑客的接口请求) =================
+@app.before_request
+def check_auth_global():
+    from flask import request, jsonify
+    
+    # 允许不登录访问的公共接口 (登录验证和心跳检测)
+    public_routes = ['/verify', '/api/heartbeat']
+    if request.path in public_routes or request.path.startswith('/static/'):
+        return None
+    
+    # 拦截所有核心功能（发图、删素材、对话、后台等）
+    if request.path.startswith('/api/') or request.path.startswith('/admin/') or request.path == '/chat':
+        user_key = None
+        # 黑客如果用 Postman 发包，我们直接查他有没有带密钥
+        if request.is_json:
+            user_key = request.json.get('user_key') or request.json.get('password') or request.json.get('admin_key')
+        elif request.form:
+            user_key = request.form.get('user_key') or request.form.get('password')
+        
+        # 没带密钥、乱编密钥、密钥被管理员停用，统统返回 401 踢掉，一句话都不跟他多说
+        if not user_key:
+            return jsonify({"error": "非法请求：缺少安全凭证", "code": "AUTH_FAILED"}), 401
+            
+        keys = load_keys()
+        if user_key not in keys and user_key != MASTER_KEY:
+            return jsonify({"error": "非法请求：无效的密钥", "code": "AUTH_FAILED"}), 401
+        if user_key != MASTER_KEY and keys.get(user_key, {}).get("is_deleted", False):
+            return jsonify({"error": "非法请求：密钥已被停用", "code": "AUTH_FAILED"}), 403
+# =================================================================================
