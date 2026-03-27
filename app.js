@@ -188,7 +188,14 @@ function init() {
     loadImageModelsToUI();
     const lastKey = localStorage.getItem('last_used_key'); if (lastKey) document.getElementById('secretKey').value = lastKey;
     const k = localStorage.getItem('user_secret_key');
-    if (k) { document.getElementById('secretKey').value = k; verifyKey(); } else { document.getElementById('chatList').innerHTML = ''; document.getElementById('chatBox').innerHTML = ''; }
+    if (k) { 
+        document.getElementById('secretKey').value = k; 
+        verifyKey(); 
+    } else { 
+        document.getElementById('keySection').style.display = 'flex'; 
+        document.getElementById('chatList').innerHTML = ''; 
+        document.getElementById('chatBox').innerHTML = ''; 
+    }
 }
 
 function toggleKeyVisibility() { const el = document.getElementById('secretKey'); el.type = el.type === 'password' ? 'text' : 'password'; }
@@ -284,8 +291,16 @@ async function verifyKey() {
             if (savedModel && dynamicModels[savedSource] && dynamicModels[savedSource].find(m => m.id === savedModel)) { document.getElementById('modelSelect').value = savedModel; }
             
             document.getElementById('keySection').style.display = 'none'; document.getElementById('headerActions').style.display = 'flex'; document.getElementById('adminBtn').style.display = isAdmin ? 'inline-block' : 'none'; addAuditLog('登录系统'); switchChat(HUB_ID);
-        } else { showToast("请联系管理员！"); }
-    } catch(e) { showToast("网络连接失败，请确保服务器正常运行！"); } finally { btn.innerText = originalText; btn.disabled = false; }
+        } else { 
+                    showToast("请联系管理员！"); 
+                    document.getElementById('keySection').style.display = 'flex';
+                }
+            } catch(e) { 
+                showToast("网络连接失败，请确保服务器正常运行！"); 
+                document.getElementById('keySection').style.display = 'flex';
+            } finally { 
+                btn.innerText = originalText; btn.disabled = false; 
+            }
 }
 
 function logout() { openConfirmModal(() => { addAuditLog('退出登录'); forceLogout("您已安全登出！"); localStorage.removeItem('user_secret_key'); }); }

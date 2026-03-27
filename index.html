@@ -41,8 +41,8 @@
     <div class="header">
         <div class="header-title-container">
             <button id="showSidebarBtn" class="show-sidebar-btn" onclick="toggleSidebar()" title="展开左侧工具菜单栏">☰</button>
-            <button id="backToHubBtn" class="back-hub-btn" onclick="switchChat(HUB_ID)" title="退出当前项目，返回九雨主控制台">⬅ 返回</button>
-            <span class="header-main-text" id="headerTitle" onclick="renameCurrentChat()" title="点击即可修改当前会话的标题">请输入您的标题</span>
+            <button id="backToHubBtn" class="back-hub-btn" onclick="switchChat(HUB_ID)" title="退出当前项目，返回九雨主控制台" style="display: none;">⬅ 返回</button>
+            <span class="header-main-text" id="headerTitle" onclick="renameCurrentChat()" title="点击即可修改当前会话的标题">九雨创作台</span>
             <span class="header-edit-icon" id="headerEditIcon" onclick="renameCurrentChat()" title="重命名当前对话" style="cursor: pointer; display: none;">✏️</span>
             <button id="exportPdfBtn" class="nav-btn" onclick="exportToPDF()" style="display: none; margin-left: 12px; color: var(--shen-color); border-color: var(--shen-color);" title="将当前页面的聊天记录排版并导出为 PDF 文档">📄 导出 PDF</button>
         </div>
@@ -54,7 +54,7 @@
         </div>
     </div>
     
-    <div class="key-section" id="keySection">
+    <div class="key-section" id="keySection" style="display: none;">
         <div class="key-input-wrapper" style="position: relative; display: inline-flex; align-items: center;">
             <input type="password" id="secretKey" placeholder="请输入您的访问密钥" title="在此输入系统分配给您的专属访问密钥" style="padding-right: 65px; width: 250px;">
             <span onclick="toggleKeyVisibility()" style="position: absolute; right: 35px; cursor: pointer; opacity: 0.6; font-size: 1.1rem;" title="显示或隐藏密钥文本">👁️</span>
