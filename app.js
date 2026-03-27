@@ -884,32 +884,21 @@ function renderAssetLibraryTool(mode) {
         </div>
     </div>`;
 
-    // ⚡ 补上刚才漏掉的权限判定变量，修复点击失效的问题
-    const canManage = isPersonal || isAdmin;
-    
-    // 将写死在 body 底部的工具栏 HTML 移入当前的视图容器内
-    const toolbarHtml = `
-    <div class="bulk-toolbar" id="bulkToolbar" style="display: ${isBulkMode ? 'flex' : 'none'}; position: sticky; bottom: 30px; margin: 20px auto 0 auto; width: 100%; max-width: 900px; flex-wrap: wrap; justify-content: space-between; box-sizing: border-box; padding: 12px 20px; border-radius: 16px; gap: 12px; z-index: 100; background: var(--bg-container); border: 1px solid var(--border-color); box-shadow: 0 10px 40px rgba(0,0,0,0.15);">
-        <div style="display:flex; align-items:center; gap:12px; flex-wrap: wrap; flex: 1;">
-            <span id="bulkSelectCount" style="font-weight:bold; color: var(--highlight-color); margin-right: 10px; white-space: nowrap;">已选择 ${selectedAssetIds.size} 项</span>
-            <button class="nav-btn" onclick="selectAllAssets()" title="全选或取消全选当前列表的所有素材">☑️ 全选/取消</button>
-            <button class="nav-btn" style="background: var(--bg-user-msg); color: white; border-color: var(--bg-user-msg);" onclick="executeBulkDownload()" title="将选中的素材打包下载为 ZIP 文件">⬇️ 批量下载</button>
-            <button class="nav-btn" id="bulkCategoryBtn" style="display: ${canManage ? 'inline-block' : 'none'};" onclick="openBulkCategoryModal()" title="统一修改所选素材的分类">🗂️ 批量分类</button>
-            <button class="nav-btn" id="bulkDeleteBtn" style="display: ${canManage ? 'inline-block' : 'none'}; color: var(--danger-color); border-color: var(--danger-color);" onclick="executeBulkDelete()" title="永久删除所选素材">🗑️ 批量删除</button>
-        </div>
-        <button class="nav-btn cancel-btn" onclick="toggleBulkMode()" style="white-space: nowrap; font-weight: bold;">❌ 取消退出</button>
-    </div>`;
-
-    // ⚡ 优化：把工具栏安全地放进外层容器里面，确保在 chatBox 里完美居中并自适应宽度
-    html = html.substring(0, html.lastIndexOf('</div>')) + toolbarHtml + '</div>';
-    
-    // 清除原本挂载在 index.html 底部那个脱离文档流的僵尸节点，防止 ID 冲突
-    const oldToolbar = document.querySelector('body > #bulkToolbar');
-    if (oldToolbar) oldToolbar.remove();
-
+    const toolbar = document.getElementById('bulkToolbar');
+    if (toolbar) {
+        if (isBulkMode) { 
+            toolbar.style.display = 'flex'; 
+            document.getElementById('bulkSelectCount').innerText = `已选择 ${selectedAssetIds.size} 项`; 
+            const canManage = isPersonal || isAdmin; 
+            document.getElementById('bulkCategoryBtn').style.display = canManage ? 'inline-block' : 'none'; 
+            document.getElementById('bulkDeleteBtn').style.display = canManage ? 'inline-block' : 'none'; 
+        } else { 
+            toolbar.style.display = 'none'; 
+        }
+    }
     return html;
 }
-}
+
 async function generateThumbnail(file) {
     return new Promise((resolve) => {
         const reader = new FileReader();
@@ -1014,17 +1003,22 @@ function toggleBulkMode() {
     const toolbar = document.getElementById('bulkToolbar');
     if (toolbar) {
         if (isBulkMode) { 
+            toolbar.style.opacity = '0';
             toolbar.style.display = 'flex'; 
+            // 用一点微小的延迟让浏览器先渲染 display，然后再改变 opacity，触发动画
+            setTimeout(() => toolbar.style.opacity = '1', 10);
+            
             document.getElementById('bulkSelectCount').innerText = `已选择 0 项`; 
             const canManage = currentLibraryMode === 'personal' || isAdmin; 
             document.getElementById('bulkCategoryBtn').style.display = canManage ? 'inline-block' : 'none'; 
             document.getElementById('bulkDeleteBtn').style.display = canManage ? 'inline-block' : 'none'; 
         } else { 
-            toolbar.style.display = 'none'; 
+            toolbar.style.opacity = '0';
+            setTimeout(() => toolbar.style.display = 'none', 200); // 等待淡出动画完成后再隐藏
         }
     }
     
-    // ⚡ 极速无感切换：仅通过 CSS 控制元素显示与隐藏，彻底告别重绘闪烁！
+    // ⚡ 极速无感切换
     document.querySelectorAll('.asset-card').forEach(card => card.classList.remove('selected'));
     document.querySelectorAll('.bulk-overlay').forEach(el => el.style.display = isBulkMode ? 'block' : 'none');
     document.querySelectorAll('.checkbox-icon').forEach(el => el.style.display = isBulkMode ? 'flex' : 'none');
