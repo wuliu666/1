@@ -2,6 +2,10 @@ import sys, os, json, string, random, requests, sqlite3, uuid, base64
 import google.generativeai as genai
 from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
+from dotenv import load_dotenv
+
+# 💡 安全引擎：加载本地的 .env 环境变量文件
+load_dotenv()
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  
@@ -405,15 +409,14 @@ def upload_asset():
     
     rel_path = ""
     
-    # ================= 腾讯云 COS 必填配置区 =================
-    # 请务必将这里替换成你真实的腾讯云子账号密钥！（和之前生图配的一模一样）
-    COS_SECRET_ID = ''       
-    COS_SECRET_KEY = ''     
-    COS_REGION = ''          
-    COS_BUCKET = '' 
+    # ================= 腾讯云 COS 安全配置区 (从 .env 动态读取) =================
+    COS_SECRET_ID = os.environ.get('COS_SECRET_ID', '')       
+    COS_SECRET_KEY = os.environ.get('COS_SECRET_KEY', '')     
+    COS_REGION = os.environ.get('COS_REGION', '')          
+    COS_BUCKET = os.environ.get('COS_BUCKET', '') 
     # =======================================================
     
-    if COS_SECRET_ID != '你的_SecretId':
+    if COS_SECRET_ID and COS_SECRET_ID != '你的_SecretId':
         try:
             from qcloud_cos import CosConfig
             from qcloud_cos import CosS3Client
@@ -734,15 +737,14 @@ def generate_image():
             from qcloud_cos import CosConfig
             from qcloud_cos import CosS3Client
             
-            # ================= 腾讯云 COS 必填配置区 =================
-            # 替换成你真实的腾讯云信息！
-            COS_SECRET_ID = ''       
-            COS_SECRET_KEY = ''     
-            COS_REGION = ''          
-            COS_BUCKET = '' 
+            # ================= 腾讯云 COS 安全配置区 (从 .env 动态读取) =================
+            COS_SECRET_ID = os.environ.get('COS_SECRET_ID', '')       
+            COS_SECRET_KEY = os.environ.get('COS_SECRET_KEY', '')     
+            COS_REGION = os.environ.get('COS_REGION', '')          
+            COS_BUCKET = os.environ.get('COS_BUCKET', '') 
             # =======================================================
 
-            if COS_SECRET_ID == '你的_SecretId':
+            if not COS_SECRET_ID or COS_SECRET_ID == '你的_SecretId':
                 print("未配置腾讯云 COS，跳过转存，使用官方原始链接")
                 return url
 

@@ -1,3 +1,129 @@
+// =========================================================================
+// 💡 极客级无感拦截引擎：将【个人素材库】悄悄转移到本地浏览器 IndexedDB
+// =========================================================================
+const LOCAL_DB_NAME = 'NineRainLocalAssetsDB';
+let localDBInstance = null;
+
+function initLocalDB() {
+    return new Promise((resolve) => {
+        const req = indexedDB.open(LOCAL_DB_NAME, 1);
+        req.onupgradeneeded = e => {
+            const db = e.target.result;
+            if (!db.objectStoreNames.contains('assets')) db.createObjectStore('assets', { keyPath: 'id' });
+        };
+        req.onsuccess = e => { localDBInstance = e.target.result; resolve(); };
+        req.onerror = () => resolve();
+    });
+}
+initLocalDB();
+
+const localDB = {
+    save: async (asset) => new Promise(r => { const tx = localDBInstance.transaction('assets', 'readwrite'); tx.objectStore('assets').put(asset); tx.oncomplete = () => r(true); }),
+    getAll: async () => new Promise(r => { const tx = localDBInstance.transaction('assets', 'readonly'); const req = tx.objectStore('assets').getAll(); req.onsuccess = () => r(req.result.sort((a,b)=>b.created_at - a.created_at)); }),
+    delete: async (ids) => new Promise(r => { const tx = localDBInstance.transaction('assets', 'readwrite'); const store = tx.objectStore('assets'); ids.forEach(id => store.delete(id)); tx.oncomplete = () => r(true); })
+};
+
+// 🔥 核心提速黑科技：将庞大的 Base64 实时转换为轻量级 Blob URL
+function base64ToBlobUrl(base64) {
+    if (!base64 || typeof base64 !== 'string' || !base64.startsWith('data:')) return base64;
+    try {
+        const parts = base64.split(',');
+        const mime = parts[0].match(/:(.*?);/)[1];
+        const bstr = atob(parts[1]);
+        let n = bstr.length;
+        const u8arr = new Uint8Array(n);
+        while(n--){ u8arr[n] = bstr.charCodeAt(n); }
+        return URL.createObjectURL(new Blob([u8arr], {type:mime}));
+    } catch(e) { return base64; }
+}
+
+// 2. 劫持底层的 Fetch 网络请求 (偷天换日)
+const originalFetch = window.fetch;
+window.fetch = async function(...args) {
+    const url = args[0]; const options = args[1] || {};
+
+    if (typeof url === 'string' && url.includes('/api/get_assets') && options.body) {
+        try {
+            const bodyObj = JSON.parse(options.body);
+            if (bodyObj.library_mode === 'personal') {
+                await initLocalDB(); const localAssets = await localDB.getAll();
+                // 🚀 性能狂飙：渲染前秒转 Blob URL
+                const fastAssets = localAssets.map(a => ({
+                    ...a,
+                    image: base64ToBlobUrl(a.image),
+                    thumb: base64ToBlobUrl(a.thumb)
+                }));
+                return new Response(JSON.stringify(fastAssets), { status: 200, headers: { 'Content-Type': 'application/json' } });
+            }
+        } catch(e) {}
+    }
+
+    if (typeof url === 'string' && url.includes('/api/upload_asset') && options.body instanceof FormData) {
+        if (options.body.get('library_mode') === 'personal') {
+            await initLocalDB();
+            const file = options.body.get('file');
+            const unique_id = 'local_asset_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onloadend = async () => {
+                    const base64Data = reader.result;
+                    const assetObj = {
+                        id: unique_id, title: options.body.get('title') || '未命名', type: options.body.get('type') || 'character',
+                        prompt: options.body.get('prompt') || '', image: base64Data, thumb: options.body.get('thumb_base64') || base64Data,
+                        library_mode: 'personal', created_at: Date.now()
+                    };
+                    await localDB.save(assetObj);
+                    resolve(new Response(JSON.stringify({ success: true, asset: assetObj }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+                };
+                if (file) reader.readAsDataURL(file);
+                else resolve(new Response(JSON.stringify({ error: "No file" }), { status: 400 }));
+            });
+        }
+    }
+
+    if (typeof url === 'string' && url.includes('/api/delete_asset') && options.body) {
+        try {
+            const bodyObj = JSON.parse(options.body);
+            if (bodyObj.ids && bodyObj.ids.length > 0 && bodyObj.ids[0].startsWith('local_asset_')) {
+                await initLocalDB(); await localDB.delete(bodyObj.ids);
+                return new Response(JSON.stringify({success:true}), { status: 200 });
+            }
+        } catch(e) {}
+    }
+
+    if (typeof url === 'string' && url.includes('/api/update_asset') && options.body) {
+         try {
+            const bodyObj = JSON.parse(options.body);
+            if(bodyObj.id && bodyObj.id.startsWith('local_asset_')) {
+                 return new Promise(r => {
+                    const tx = localDBInstance.transaction('assets', 'readwrite'); const store = tx.objectStore('assets');
+                    const getReq = store.get(bodyObj.id);
+                    getReq.onsuccess = () => {
+                        if(getReq.result) { let item = getReq.result; item.title = bodyObj.title; item.type = bodyObj.type; item.prompt = bodyObj.prompt; store.put(item); }
+                        r(new Response(JSON.stringify({success:true}), { status: 200 }));
+                    }
+                });
+            }
+         } catch(e) {}
+    }
+
+    if (typeof url === 'string' && url.includes('/api/bulk_update_category') && options.body) {
+         try {
+            const bodyObj = JSON.parse(options.body);
+            if(bodyObj.ids && bodyObj.ids.length > 0 && bodyObj.ids[0].startsWith('local_asset_')) {
+                 return new Promise(r => {
+                    const tx = localDBInstance.transaction('assets', 'readwrite'); const store = tx.objectStore('assets');
+                    bodyObj.ids.forEach(id => { const getReq = store.get(id); getReq.onsuccess = () => { if(getReq.result) { let item = getReq.result; item.type = bodyObj.type; store.put(item); } } });
+                    tx.oncomplete = () => r(new Response(JSON.stringify({success:true}), { status: 200 }));
+                });
+            }
+         } catch(e) {}
+    }
+
+    return originalFetch.apply(this, args);
+};
+// ========================== 拦截引擎结束 =================================
+
 // ⚡ 注意：必须把这里的 IP 替换为您真实的公网 IP！
 const API_BASE_URL = "http://127.0.0.1:5000"; 
 const HUB_ID = 'STORYBOARD_HUB'; 
@@ -618,69 +744,15 @@ async function clearAuditLogs() {
     } catch(e) { alert("清空失败"); }
 }
 
-// ==================== 新增：个人数据库全量备份与跨设备恢复引擎 ====================
-async function exportLocalLibrary() {
-    await initLocalDB(); const allAssets = await localDB.getAll();
-    if (allAssets.length === 0) return alert("您的个人素材库是空的，无需备份！");
-    
-    // 粗略计算一下整个数据库打包后大概有多大 (将字节转为 MB)
-    const dataStr = JSON.stringify(allAssets);
-    const estimatedSizeMB = (new Blob([dataStr]).size / (1024 * 1024)).toFixed(2);
-    
-    // 💡 强提醒：明确告诉用户这会下载新文件，并建议他们去删旧文件
-    const confirmMsg = `当前图库共 ${allAssets.length} 项素材，预计全量数据库备份大小约 ${estimatedSizeMB} MB。\n\n⚠️ 【温馨提示】\n受限于浏览器安全规则，每次备份都会生成一个全新的数据库文件。\n为防止占用您过多的电脑存储空间，建议您在下载完成后，手动将之前的旧备份文件删除！\n\n是否继续下载本次备份？`;
-    
-    if (!confirm(confirmMsg)) return;
-
-    showToast("📦 正在生成全量数据库文件，请稍候...");
-    const blob = new Blob([dataStr], {type: "application/json"});
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url; 
-    
-    // 给文件名加上精确到秒的时间戳，方便用户换电脑时辨认哪个是最新的
-    const timeStr = new Date().toLocaleTimeString('zh-CN', {hour12:false}).replace(/:/g, '');
-    const dateStr = new Date().toISOString().split('T')[0];
-    link.download = `九雨本地数据库备份_${dateStr}_${timeStr}.json`;
-    
-    link.click(); URL.revokeObjectURL(url);
-    showToast("✅ 数据库备份已完成！换电脑时可直接导入此文件恢复。");
-}
-
-function triggerImportLocalLibrary() {
-    const input = document.createElement('input'); input.type = 'file'; input.accept = '.json';
-    input.onchange = e => {
-        const file = e.target.files[0]; if(!file) return;
-        const reader = new FileReader();
-        reader.onload = async ev => {
-            try {
-                const importedAssets = JSON.parse(ev.target.result);
-                if (!Array.isArray(importedAssets)) throw new Error("无效格式");
-                
-                showToast(`⏳ 正在跨设备恢复 ${importedAssets.length} 个素材，请勿关闭页面...`);
-                await initLocalDB();
-                // 遍历备份文件，将所有数据重新注入当前电脑的底层数据库中
-                for(let asset of importedAssets) { await localDB.save(asset); } 
-                
-                showToast("✅ 数据库全量恢复成功！即将为您刷新界面...");
-                setTimeout(() => location.reload(), 1500); // 刷新重载数据，分类和图全回来
-            } catch(err) { alert("❌ 备份文件损坏或非本系统导出的标准数据库格式！"); }
-        }; reader.readAsText(file);
-    }; input.click();
-}
-// =================================================================================
-
 // ==================== 个人数据库全量备份与跨设备恢复引擎 ====================
 async function exportLocalLibrary() {
     await initLocalDB(); const allAssets = await localDB.getAll();
     if (allAssets.length === 0) return alert("您的个人素材库是空的，无需备份！");
     
-    // 粗略计算一下整个数据库打包后大概有多大 (将字节转为 MB)
     const dataStr = JSON.stringify(allAssets);
     const estimatedSizeMB = (new Blob([dataStr]).size / (1024 * 1024)).toFixed(2);
     
-    // 💡 强提醒：明确告诉用户这会下载新文件，并建议他们去删旧文件
-    const confirmMsg = `当前图库共 ${allAssets.length} 项素材，预计全量数据库备份大小约 ${estimatedSizeMB} MB。\n\n⚠️ 【温馨提示】\n受限于浏览器安全规则，每次备份都会生成一个全新的数据库文件。\n为防止占用您过多的电脑存储空间，建议您在下载完成后，手动将之前的旧备份文件删除！\n\n是否继续下载本次备份？`;
+    const confirmMsg = `当前图库共 ${allAssets.length} 项素材，预计全量数据库备份大小约 ${estimatedSizeMB} MB。\n\n⚠️ 【温馨提示】\n每次备份都会生成一个全新的数据库文件。\n为防止占用您过多的电脑存储空间，建议您在下载完成后手动删除旧备份！\n\n是否继续下载本次备份？`;
     
     if (!confirm(confirmMsg)) return;
 
@@ -690,7 +762,6 @@ async function exportLocalLibrary() {
     const link = document.createElement('a');
     link.href = url; 
     
-    // 给文件名加上精确到秒的时间戳，方便用户换电脑时辨认哪个是最新的
     const timeStr = new Date().toLocaleTimeString('zh-CN', {hour12:false}).replace(/:/g, '');
     const dateStr = new Date().toISOString().split('T')[0];
     link.download = `九雨本地数据库备份_${dateStr}_${timeStr}.json`;
@@ -711,12 +782,11 @@ function triggerImportLocalLibrary() {
                 
                 showToast(`⏳ 正在跨设备恢复 ${importedAssets.length} 个素材，请勿关闭页面...`);
                 await initLocalDB();
-                // 遍历备份文件，将所有数据重新注入当前电脑的底层数据库中
                 for(let asset of importedAssets) { await localDB.save(asset); } 
                 
                 showToast("✅ 数据库全量恢复成功！即将为您刷新界面...");
-                setTimeout(() => location.reload(), 1500); // 刷新重载数据，分类和图全回来
-            } catch(err) { alert("❌ 备份文件损坏或非本系统导出的标准数据库格式！"); }
+                setTimeout(() => location.reload(), 1500); 
+            } catch(err) { alert("❌ 备份文件损坏或格式不正确！"); }
         }; reader.readAsText(file);
     }; input.click();
 }
@@ -731,18 +801,17 @@ function renderAssetLibraryTool(mode) {
     <div class="hub-wrapper">
         <div style="max-width: 1000px; margin: 0 auto; width: 100%; padding: 30px; box-sizing: border-box; animation: pop 0.3s ease;">
             
-            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; border-bottom: 1px solid var(--border-color); padding-bottom: 16px;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; border-bottom: 1px solid var(--border-color); padding-bottom: 16px;">
                 <div>
                     <h2 style="margin: 0 0 6px 0;">${titleText}</h2>
                     <div style="font-size: 0.85rem; color: var(--text-secondary);">
-                        ${isPersonal ? '极速存取，0 服务器占用。' : '由管理员维护的高质量基准素材，全员云端实时极速共享加载。'}
+                        ${isPersonal ? '' : '由管理员维护的高质量基准素材，全员云端实时极速共享加载。'}
                     </div>
                 </div>
                 
                 <div style="display:flex; gap:10px; align-items: center; flex-wrap: wrap; justify-content: flex-end;">
                     `;
                     
-                    // 💡 优化：把备份和恢复按钮直接移到右上角，与添加素材平齐
                     if (isPersonal && !isBulkMode) {
                         html += `
                         <button onclick="exportLocalLibrary()" style="background: transparent; color: var(--text-main); border: 1px dashed var(--border-color); padding: 8px 12px; border-radius: 8px; cursor: pointer; font-size: 0.85rem; transition: 0.2s;" onmouseover="this.style.backgroundColor='var(--bg-hover)'" onmouseout="this.style.backgroundColor='transparent'" title="打包下载到硬盘">📥 备份数据</button>
@@ -757,6 +826,13 @@ function renderAssetLibraryTool(mode) {
                 </div>
             </div>
 
+            ${isPersonal ? `
+            <div id="personalWarningBanner" style="background: rgba(255, 149, 0, 0.1); border: 1px solid rgba(255, 149, 0, 0.3); border-radius: 8px; padding: 12px 16px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; color: #ff9500; font-size: 0.9rem; animation: pop 0.3s ease;">
+                <div>⚠️ <strong>安全提示：</strong> 数据仅存于当前浏览器，清理缓存或换电脑前请务必备份！</div>
+                <button onclick="document.getElementById('personalWarningBanner').style.display='none'" style="background: transparent; border: none; color: #ff9500; font-size: 1.5rem; cursor: pointer; padding: 0 5px; line-height: 1; transition: 0.2s;" onmouseover="this.style.transform='scale(1.2)'" onmouseout="this.style.transform='scale(1)'" title="关闭提醒">×</button>
+            </div>
+            ` : ''}
+
             <div style="display: flex; gap: 10px; margin-bottom: 24px;">
                 <button class="nav-btn ${currentAssetFilter === 'all' ? 'active' : ''}" style="padding: 8px 16px; font-size: 0.9rem;" onclick="filterAssets('all')">全部展示</button>
                 <button class="nav-btn ${currentAssetFilter === 'character' ? 'active' : ''}" style="padding: 8px 16px; font-size: 0.9rem;" onclick="filterAssets('character')">👤 角色设定</button>
@@ -767,7 +843,6 @@ function renderAssetLibraryTool(mode) {
         </div>
     </div>`;
 
-    // 批量操作工具栏逻辑
     const toolbar = document.getElementById('bulkToolbar');
     if (isBulkMode) { toolbar.style.display = 'flex'; document.getElementById('bulkSelectCount').innerText = `已选择 ${selectedAssetIds.size} 项`; const canManage = isPersonal || isAdmin; document.getElementById('bulkCategoryBtn').style.display = canManage ? 'inline-block' : 'none'; document.getElementById('bulkDeleteBtn').style.display = canManage ? 'inline-block' : 'none'; } else { toolbar.style.display = 'none'; }
     return html;
@@ -828,7 +903,8 @@ function openFullImage(id) {
     const modal = document.getElementById('imageViewerModal'); const canvas = document.getElementById('fullViewCanvas'); const ctx = canvas.getContext('2d');
     const img = new Image(); img.crossOrigin = "Anonymous"; 
     img.onload = () => { canvas.width = img.width; canvas.height = img.height; ctx.drawImage(img, 0, 0); if (currentLibraryMode === 'team') { drawTeamWatermark(canvas, ctx); } modal.classList.add('show'); };
-    img.src = API_BASE_URL + asset.image;
+    // 💡 修复：本地 Blob 数据无需加服务器 API 前缀
+    img.src = asset.image.startsWith('data:') || asset.image.startsWith('blob:') || asset.image.startsWith('http') ? asset.image : API_BASE_URL + asset.image;
 }
 function closeImageViewer() { document.getElementById('imageViewerModal').classList.remove('show'); }
 
@@ -850,7 +926,9 @@ function renderAssetGrid() {
         const canvas = document.getElementById(`canvas_${asset.id}`); if(!canvas) return;
         const ctx = canvas.getContext('2d'); const img = new Image(); img.crossOrigin = "Anonymous"; 
         img.onload = () => { canvas.width = img.width; canvas.height = img.height; ctx.drawImage(img, 0, 0); if (currentLibraryMode === 'team') { drawTeamWatermark(canvas, ctx); } };
-        img.src = API_BASE_URL + (asset.thumb || asset.image);
+        // 💡 修复：确保正确的缩略图地址判定
+        const imgSrc = asset.thumb || asset.image;
+        img.src = imgSrc.startsWith('data:') || imgSrc.startsWith('blob:') || imgSrc.startsWith('http') ? imgSrc : API_BASE_URL + imgSrc;
     });
 }
 
@@ -864,7 +942,11 @@ async function executeBulkDownload() {
     selectedAssetIds.forEach((id) => { 
         const asset = sourceArray.find(a => a.id === id); 
         if(asset && asset.image) { 
-            count++; const p = fetch(API_BASE_URL + asset.image).then(res => res.blob()).then(blob => { let ext = asset.image.split('.').pop() || 'png'; zip.file(`${asset.title}_${count}.${ext}`, blob); }); promises.push(p);
+            count++; 
+            // 💡 修复：兼容本地 Blob 和远程拉取的安全前缀
+            const urlToFetch = asset.image.startsWith('data:') || asset.image.startsWith('blob:') || asset.image.startsWith('http') ? asset.image : API_BASE_URL + asset.image;
+            const p = fetch(urlToFetch).then(res => res.blob()).then(blob => { let ext = asset.image.split('.').pop() || 'png'; if(ext.includes('blob')) ext = 'png'; zip.file(`${asset.title}_${count}.${ext}`, blob); }); 
+            promises.push(p);
         } 
     });
     await Promise.all(promises); zip.generateAsync({type: "blob"}).then(content => { const link = document.createElement('a'); link.href = URL.createObjectURL(content); link.download = `素材批量下载_${Date.now()}.zip`; link.click(); addAuditLog(`批量下载了 ${count} 个素材`); toggleBulkMode(); });
@@ -1252,7 +1334,11 @@ function switchChat(id) {
     
     if (id === HUB_ID) { title.innerText = "九雨创作台"; chatBox.innerHTML = renderHubContent(); } 
     else if (id === TEAM_ASSET_ID) { title.innerText = "📁 团队公共素材库"; chatBox.innerHTML = renderAssetLibraryTool('team'); renderAssetGrid(); } 
-    else if (id === PERSONAL_ASSET_ID) { title.innerText = "🔒 我的个人素材库"; chatBox.innerHTML = renderAssetLibraryTool('personal'); renderAssetGrid(); } 
+    else if (id === PERSONAL_ASSET_ID) { 
+        title.innerText = "🔒 我的个人素材库"; 
+        chatBox.innerHTML = renderAssetLibraryTool('personal'); 
+        renderAssetGrid(); 
+    }
     else if (id === IMAGE_SPLIT_ID) { title.innerText = "批量图片拆分与去水印工具"; chatBox.innerHTML = renderImageSplitterTool(); } 
     else if (id === IMAGE_GEN_ID) { title.innerText = "🎨 AI生图控制台"; imgGenSec.style.display = 'flex'; renderMessages(); } 
     else {
