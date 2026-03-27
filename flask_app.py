@@ -639,7 +639,7 @@ def check_balance():
 @app.route('/api/generate_image', methods=['POST'])
 def generate_image():
     from flask import Response, stream_with_context
-    import json
+    import json, os, requests, uuid
     
     data = request.json
     pwd = data.get('password')
@@ -677,6 +677,48 @@ def generate_image():
     if not dynamic_key: 
         return jsonify({"error": f"系统未配置 [{source}] 的 API Key"}), 400
 
+    # 💡 核心升级：腾讯云 COS 对象存储【0硬盘占用】内存接力转存引擎
+    def cache_image_permanently(url):
+        if not url.startswith('http'): return url
+        try:
+            from qcloud_cos import CosConfig
+            from qcloud_cos import CosS3Client
+            
+            # ================= 腾讯云 COS 必填配置区 =================
+            # 替换成你真实的腾讯云信息！
+            COS_SECRET_ID = ''       
+            COS_SECRET_KEY = ''     
+            COS_REGION = ''          
+            COS_BUCKET = '' 
+            # =======================================================
+
+            if COS_SECRET_ID == '你的_SecretId':
+                print("未配置腾讯云 COS，跳过转存，使用官方原始链接")
+                return url
+
+            config = CosConfig(Region=COS_REGION, SecretId=COS_SECRET_ID, SecretKey=COS_SECRET_KEY)
+            client = CosS3Client(config)
+
+            r = requests.get(url, timeout=20)
+            if not r.ok: return url
+
+            file_name = f"ai_gallery/gen_{uuid.uuid4().hex}.png"  
+
+            client.put_object(
+                Bucket=COS_BUCKET,
+                Body=r.content,
+                Key=file_name,
+                StorageClass='STANDARD',
+                EnableMD5=False
+            )
+            
+            return f"https://{COS_BUCKET}.cos.{COS_REGION}.myqcloud.com/{file_name}"
+
+        except Exception as e:
+            print(f"腾讯云 COS 转存异常，已安全降级: {e}")
+            
+        return url
+
     def generate_stream():
         try:
             headers = {"Authorization": f"Bearer {dynamic_key}", "Content-Type": "application/json"}
@@ -701,8 +743,6 @@ def generate_image():
                             urls.append(part)
                         clean_prompt = clean_prompt.replace(part, "", 1).strip()
                 
-                # 💡 核心奥义：不传 webHook，不传 shutProgress！
-                # 这样官方就会把进度条像直播一样（Stream）实时推给我们！
                 nano_payload = {
                     "model": model,
                     "prompt": clean_prompt,
@@ -712,22 +752,32 @@ def generate_image():
                 }
                 
                 try:
-                    # 开启 stream=True，打通数据输油管
                     nr = requests.post(draw_url, json=nano_payload, headers=headers, stream=True, timeout=240)
                     if not nr.ok:
                         yield f"data: {json.dumps({'error': f'官方拒绝请求 ({nr.status_code}): {nr.text[:150]}'})}\n\n"
                         return
                         
-                   # 像接水一样，把官方发来的进度实时扔给网页前端！
                     for line in nr.iter_lines():
                         if line:
                             decoded = line.decode('utf-8').strip()
                             if decoded:
-                                # 核心防漏：强制给返回结果套上标准的 SSE 'data: ' 前缀，防错失进度
                                 if not decoded.startswith("data:"):
-                                    yield f"data: {decoded}\n\n"
-                                else:
-                                    yield f"{decoded}\n\n"
+                                    decoded = f"data: {decoded}"
+                                
+                                # 💡 核心拦截：在这里截获云端返回的图，直接上传到腾讯云！
+                                try:
+                                    line_data = decoded[5:].strip()
+                                    if line_data and line_data != "[DONE]":
+                                        p_data = json.loads(line_data)
+                                        if p_data.get("status") in ["succeeded", "SUCCESS"] and p_data.get("results"):
+                                            orig_url = p_data["results"][0]["url"]
+                                            perm_url = cache_image_permanently(orig_url)
+                                            p_data["results"][0]["url"] = perm_url
+                                            yield f"data: {json.dumps(p_data)}\n\n"
+                                            continue
+                                except: pass
+                                
+                                yield f"{decoded}\n\n"
                     return
                 except Exception as re:
                     yield f"data: {json.dumps({'error': f'流式请求断开: {str(re)}'})}\n\n"
@@ -735,7 +785,6 @@ def generate_image():
 
             # ================= 标准协议 (不支持进度的传统模型) =================
             else:
-                # 给网页发送一个伪装的加载中进度，安抚用户
                 yield f"data: {json.dumps({'progress': 20, 'status': 'running'})}\n\n"
                 
                 payload = {
@@ -755,9 +804,9 @@ def generate_image():
                             if 'b64_json' in item and item['b64_json']:
                                 images.append(f"data:image/png;base64,{item['b64_json']}")
                             elif 'url' in item and item['url']:
-                                images.append(item['url'])
+                                perm_u = cache_image_permanently(item['url'])
+                                images.append(perm_u)
                         if images:
-                            # 拿到图后，直接下发 100% 进度和结果
                             yield f"data: {json.dumps({'progress': 100, 'status': 'succeeded', 'results': [{'url': images[0]}]})}\n\n"
                         else:
                             yield f"data: {json.dumps({'error': '生图成功，但未返回URL'})}\n\n"
@@ -769,7 +818,6 @@ def generate_image():
         except Exception as e:
             yield f"data: {json.dumps({'error': f'服务器崩盘: {str(e)[:100]}'})}\n\n"
 
-    # 使用流式传输格式将进度发往前端
     return Response(stream_with_context(generate_stream()), mimetype='text/event-stream')
 
 @app.route('/chat', methods=['POST'])
