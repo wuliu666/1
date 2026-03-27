@@ -1335,11 +1335,27 @@ function renderUploadPreview() {
         wrap.style.display = 'none'; wrap.innerHTML = ''; return;
     }
     wrap.style.display = 'inline-flex'; wrap.style.flexWrap = 'wrap'; wrap.style.gap = '8px';
-    let html = '';
+    wrap.innerHTML = ''; 
     currentUploadedImages.forEach((imgBase64, index) => {
-        html += `<div class="img-preview-wrap"><img src="${imgBase64}" class="img-preview-thumb" style="cursor:pointer;" onclick="openFullImageFromBase64('${imgBase64}')" title="点击放大查看"><div class="img-preview-close" onclick="removeUploadedImage(${index})">×</div></div>`;
+        const div = document.createElement('div');
+        div.className = 'img-preview-wrap';
+        
+        const img = document.createElement('img');
+        img.src = imgBase64;
+        img.className = 'img-preview-thumb';
+        img.style.cursor = 'pointer';
+        img.title = '点击放大查看';
+        img.onclick = () => openFullImageFromBase64(imgBase64);
+        
+        const closeBtn = document.createElement('div');
+        closeBtn.className = 'img-preview-close';
+        closeBtn.innerText = '×';
+        closeBtn.onclick = () => removeUploadedImage(index);
+        
+        div.appendChild(img);
+        div.appendChild(closeBtn);
+        wrap.appendChild(div);
     });
-    wrap.innerHTML = html;
 }
 function removeUploadedImage(index) { currentUploadedImages.splice(index, 1); renderUploadPreview(); }
 function clearGenImage() { currentUploadedImages = []; const u = document.getElementById('imgGenUpload'); if(u) u.value = ''; renderUploadPreview(); }
@@ -1701,7 +1717,11 @@ function renderMessages() {
             if (imgs.length > 0) {
                 const imgWrap = document.createElement('div'); imgWrap.style.marginTop = '10px'; imgWrap.style.display = 'flex'; imgWrap.style.flexWrap = 'wrap'; imgWrap.style.gap = '8px';
                 imgs.forEach(imgSrc => {
-                    imgWrap.innerHTML += `<img src="${imgSrc}" style="max-width: 120px; border-radius: 8px; border: 2px solid rgba(255,255,255,0.3); cursor:pointer;" onclick="openFullImageFromBase64('${imgSrc}')">`;
+                    const imgEl = document.createElement('img');
+                    imgEl.src = imgSrc;
+                    imgEl.style.cssText = "max-width: 120px; border-radius: 8px; border: 2px solid rgba(255,255,255,0.3); cursor:pointer;";
+                    imgEl.onclick = () => openFullImageFromBase64(imgSrc);
+                    imgWrap.appendChild(imgEl);
                 });
                 contentWrapper.appendChild(imgWrap);
             }
