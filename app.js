@@ -2070,14 +2070,25 @@ switchChat = function(id) {
     _oldSwitchChat(id);
 };
 
-// 4. 修复退出登录变白板，完美退回大厅
+// 4. 修复退出登录变白板，并彻底物理清空内存残影（极度安全）
 forceLogout = function(alertMsg) {
     if(heartbeatInterval) { clearInterval(heartbeatInterval); heartbeatInterval = null; }
     currentUserKey = null; currentSessionToken = null;
+    
+    // 🛡️ 物理隔离：强制清空内存中的所有私有聊天和素材数据！
+    chats = []; 
+    personalAssets = [];
+    currentUploadedImages = [];
+    
     document.getElementById('keySection').style.display = 'flex'; 
     document.getElementById('headerActions').style.display = 'none'; 
     document.getElementById('chatList').innerHTML = ''; 
     _oldSwitchChat(HUB_ID); 
+    
+    // 🛡️ 强制重绘一次大厅，确保残影被彻底清除
+    const chatBox = document.getElementById('chatBox');
+    if (currentChatId === HUB_ID && chatBox) chatBox.innerHTML = renderHubContent();
+
     if(alertMsg) showToast(alertMsg);
     if (window.innerWidth <= 768) { isSidebarCollapsed = true; document.getElementById('appSidebar')?.classList.add('collapsed'); document.getElementById('mobileOverlay')?.classList.remove('show'); }
 };
@@ -2096,13 +2107,15 @@ init = function() {
         _oldSwitchChat(HUB_ID); 
         verifyKey(); 
     } else { 
+        // 🛡️ 游客模式安全兜底：未登录时强制初始化空数组，防止通过 F12 恢复数据
+        chats = []; 
+        personalAssets = [];
         document.getElementById('keySection').style.display = 'flex'; 
         document.getElementById('headerActions').style.display = 'none';
         _oldSwitchChat(HUB_ID); 
         fetchTeamAssets().then(() => { if (currentChatId === TEAM_ASSET_ID) renderAssetGrid(); });
     }
 };
-
 // 6. 🛡️ 终极防黑客网络底层拦截盾 (强行往数据包塞密钥，防伪造请求)
 const _baseFetch = window.fetch;
 window.fetch = async function(...args) {
