@@ -308,7 +308,7 @@
 
 <div class="modal-overlay" id="quotaModal" style="display: none;"><div class="modal-box" style="max-width:320px; text-align: center;"><h3 style="margin-top: 0;">设置生图额度</h3><input type="number" id="quotaInput" placeholder="输入整数 (如 1000)" style="width:100%; padding:12px; border-radius:10px; border:1px solid var(--border-color); box-sizing:border-box; margin-bottom:20px;"><div style="display:flex; gap:10px;"><button class="modal-btn cancel-btn" style="flex:1" onclick="closeQuotaModal()">取消</button><button class="modal-btn btn-confirm" style="flex:1" onclick="saveQuota()">保存</button></div></div></div>
 
-<div class="bulk-toolbar" id="bulkToolbar" style="display: none; width: 95%; max-width: 900px; flex-wrap: wrap; justify-content: space-between; box-sizing: border-box; padding: 12px 20px; border-radius: 16px; gap: 12px; z-index: 9999;">
+<div class="bulk-toolbar" id="bulkToolbar" style="display: none; position: absolute; bottom: 30px; left: 0; right: 0; margin: 0 auto; width: calc(100% - 48px); max-width: 900px; flex-wrap: wrap; justify-content: space-between; box-sizing: border-box; padding: 12px 20px; border-radius: 16px; gap: 12px; z-index: 9999; background: var(--bg-container); border: 1px solid var(--border-color); box-shadow: 0 10px 40px rgba(0,0,0,0.15);">
     <div style="display:flex; align-items:center; gap:12px; flex-wrap: wrap; flex: 1;">
         <span id="bulkSelectCount" style="font-weight:bold; color: var(--highlight-color); margin-right: 10px; white-space: nowrap;">已选择 0 项</span>
         <button class="nav-btn" onclick="selectAllAssets()" title="全选或取消全选当前列表的所有素材">☑️ 全选/取消</button>
@@ -318,7 +318,6 @@
     </div>
     <button class="nav-btn cancel-btn" onclick="toggleBulkMode()" style="white-space: nowrap; font-weight: bold;">❌ 取消退出</button>
 </div>
-
 <div class="modal-overlay" id="imageViewerModal" onclick="closeImageViewer()" style="cursor: zoom-out; display: none;">
     <div style="position: relative; max-width: 95%; max-height: 95vh; display: flex; justify-content: center; align-items: center;" onclick="event.stopPropagation()">
         <canvas id="fullViewCanvas" style="max-width: 100%; max-height: 90vh; pointer-events: none; border-radius: 8px; box-shadow: 0 10px 40px rgba(0,0,0,0.5);" oncontextmenu="return false;" ondragstart="return false;"></canvas>

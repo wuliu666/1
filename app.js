@@ -884,11 +884,32 @@ function renderAssetLibraryTool(mode) {
         </div>
     </div>`;
 
-    const toolbar = document.getElementById('bulkToolbar');
-    if (isBulkMode) { toolbar.style.display = 'flex'; document.getElementById('bulkSelectCount').innerText = `已选择 ${selectedAssetIds.size} 项`; const canManage = isPersonal || isAdmin; document.getElementById('bulkCategoryBtn').style.display = canManage ? 'inline-block' : 'none'; document.getElementById('bulkDeleteBtn').style.display = canManage ? 'inline-block' : 'none'; } else { toolbar.style.display = 'none'; }
+    // ⚡ 补上刚才漏掉的权限判定变量，修复点击失效的问题
+    const canManage = isPersonal || isAdmin;
+    
+    // 将写死在 body 底部的工具栏 HTML 移入当前的视图容器内
+    const toolbarHtml = `
+    <div class="bulk-toolbar" id="bulkToolbar" style="display: ${isBulkMode ? 'flex' : 'none'}; position: sticky; bottom: 30px; margin: 20px auto 0 auto; width: 100%; max-width: 900px; flex-wrap: wrap; justify-content: space-between; box-sizing: border-box; padding: 12px 20px; border-radius: 16px; gap: 12px; z-index: 100; background: var(--bg-container); border: 1px solid var(--border-color); box-shadow: 0 10px 40px rgba(0,0,0,0.15);">
+        <div style="display:flex; align-items:center; gap:12px; flex-wrap: wrap; flex: 1;">
+            <span id="bulkSelectCount" style="font-weight:bold; color: var(--highlight-color); margin-right: 10px; white-space: nowrap;">已选择 ${selectedAssetIds.size} 项</span>
+            <button class="nav-btn" onclick="selectAllAssets()" title="全选或取消全选当前列表的所有素材">☑️ 全选/取消</button>
+            <button class="nav-btn" style="background: var(--bg-user-msg); color: white; border-color: var(--bg-user-msg);" onclick="executeBulkDownload()" title="将选中的素材打包下载为 ZIP 文件">⬇️ 批量下载</button>
+            <button class="nav-btn" id="bulkCategoryBtn" style="display: ${canManage ? 'inline-block' : 'none'};" onclick="openBulkCategoryModal()" title="统一修改所选素材的分类">🗂️ 批量分类</button>
+            <button class="nav-btn" id="bulkDeleteBtn" style="display: ${canManage ? 'inline-block' : 'none'}; color: var(--danger-color); border-color: var(--danger-color);" onclick="executeBulkDelete()" title="永久删除所选素材">🗑️ 批量删除</button>
+        </div>
+        <button class="nav-btn cancel-btn" onclick="toggleBulkMode()" style="white-space: nowrap; font-weight: bold;">❌ 取消退出</button>
+    </div>`;
+
+    // ⚡ 优化：把工具栏安全地放进外层容器里面，确保在 chatBox 里完美居中并自适应宽度
+    html = html.substring(0, html.lastIndexOf('</div>')) + toolbarHtml + '</div>';
+    
+    // 清除原本挂载在 index.html 底部那个脱离文档流的僵尸节点，防止 ID 冲突
+    const oldToolbar = document.querySelector('body > #bulkToolbar');
+    if (oldToolbar) oldToolbar.remove();
+
     return html;
 }
-
+}
 async function generateThumbnail(file) {
     return new Promise((resolve) => {
         const reader = new FileReader();
@@ -967,8 +988,8 @@ function renderAssetGrid() {
 
     filtered.forEach(asset => {
         const isSelected = selectedAssetIds.has(asset.id); let cardHtml = `<div class="asset-card ${isSelected ? 'selected' : ''}" id="asset-card-${asset.id}">`;
-        if (isBulkMode) { cardHtml += `<div class="bulk-overlay" onclick="toggleSelectAsset('${asset.id}')"></div><div class="checkbox-icon">✓</div>`; }
-       cardHtml += `<div class="canvas-container" title="点击查看安全无码大图" style="width: 100%; height: 240px; background: var(--bg-container); cursor: pointer; display: flex; justify-content: center; align-items: center;" onclick="openFullImage('${asset.id}')" oncontextmenu="return false;" ondragstart="return false;"><canvas id="canvas_${asset.id}" style="width: 100%; height: 100%; object-fit: contain; pointer-events: none;"></canvas></div><div style="padding: 16px;"><div style="font-weight: bold; margin-bottom: 6px; font-size: 1.05rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${asset.title}">${asset.title}</div><div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 12px; display: inline-block; background: var(--bg-container); padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border-color);">${asset.type === 'character' ? '👤 角色设定' : '🏞️ 场景概念'}</div><div style="display: flex; gap: 8px;"><button class="nav-btn" style="flex: 1; padding: 8px; font-size: 0.85rem; border-color: var(--shen-color); color: var(--shen-color);" onclick="useAssetAsReference('${asset.image}')">🪄 垫图</button><button class="nav-btn" style="flex: 1; padding: 8px; font-size: 0.85rem;" onclick="useAssetPrompt('${(asset.prompt||'').replace(/'/g, "\\'")}')">♻️ 提词</button></div>`;
+        cardHtml += `<div class="bulk-overlay" onclick="event.stopPropagation(); toggleSelectAsset('${asset.id}')" style="display: ${isBulkMode ? 'block' : 'none'};"></div><div class="checkbox-icon" style="display: ${isBulkMode ? 'flex' : 'none'};">✓</div>`;
+       cardHtml += `<div class="canvas-container" title="点击查看安全无码大图" style="width: 100%; height: 240px; background: var(--bg-container); cursor: pointer; display: flex; justify-content: center; align-items: center;" onclick="openFullImage('${asset.id}')" oncontextmenu="return false;" ondragstart="return false;"><canvas id="canvas_${asset.id}" style="width: 100%; height: 100%; object-fit: contain; pointer-events: none;"></canvas></div><div style="padding: 16px;"><div class="asset-title" style="font-weight: bold; margin-bottom: 6px; font-size: 1.05rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${asset.title}">${asset.title}</div><div class="asset-badge" style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 12px; display: inline-block; background: var(--bg-container); padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border-color);">${asset.type === 'character' ? '👤 角色设定' : '🏞️ 场景概念'}</div><div style="display: flex; gap: 8px;"><button class="nav-btn" style="flex: 1; padding: 8px; font-size: 0.85rem; border-color: var(--shen-color); color: var(--shen-color);" onclick="event.stopPropagation(); useAssetAsReference('${asset.image}')">🪄 垫图</button><button class="nav-btn" style="flex: 1; padding: 8px; font-size: 0.85rem;" onclick="event.stopPropagation(); useAssetPrompt('${(asset.prompt||'').replace(/'/g, "\\'")}')">♻️ 提词</button></div>`;
         if (canManage && !isBulkMode) { cardHtml += `<div style="display: flex; gap: 8px; margin-top: 8px;"><button class="nav-btn" style="flex: 1; padding: 6px; font-size: 0.85rem;" onclick="editAsset('${asset.id}')">✏️ 编辑</button><button class="nav-btn" style="flex: 1; padding: 6px; font-size: 0.85rem; border: none; color: var(--danger-color); background: transparent; opacity: 0.7;" onclick="deleteAsset('${asset.id}')" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.7'">🗑️ 删除</button></div>`; }
         cardHtml += `</div></div>`; grid.innerHTML += cardHtml;
     });
@@ -1002,7 +1023,11 @@ function toggleBulkMode() {
             toolbar.style.display = 'none'; 
         }
     }
-    renderAssetGrid(); 
+    
+    // ⚡ 极速无感切换：仅通过 CSS 控制元素显示与隐藏，彻底告别重绘闪烁！
+    document.querySelectorAll('.asset-card').forEach(card => card.classList.remove('selected'));
+    document.querySelectorAll('.bulk-overlay').forEach(el => el.style.display = isBulkMode ? 'block' : 'none');
+    document.querySelectorAll('.checkbox-icon').forEach(el => el.style.display = isBulkMode ? 'flex' : 'none');
 }
 function toggleSelectAsset(id) { 
     if (selectedAssetIds.has(id)) {
@@ -1060,6 +1085,9 @@ function executeBulkDelete() {
         try {
             await fetch(`${API_BASE_URL}/api/delete_asset`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ids: idsToDelete}) });
             if (currentLibraryMode === 'team') { teamAssets = teamAssets.filter(a => !selectedAssetIds.has(a.id)); } else { personalAssets = personalAssets.filter(a => !selectedAssetIds.has(a.id)); } addAuditLog(`批量删除了 ${idsToDelete.length} 个素材`); 
+            
+            // ⚡ 直接拔除 DOM 卡片，0 闪烁无缝过渡
+            idsToDelete.forEach(id => { const card = document.getElementById(`asset-card-${id}`); if(card) card.remove(); });
         } catch(e) {}
         toggleBulkMode();
     });
@@ -1071,6 +1099,15 @@ async function confirmBulkCategory() {
     try {
         await fetch(`${API_BASE_URL}/api/bulk_update_category`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ids: idsToUpdate, type: newType}) });
         const sourceArray = currentLibraryMode === 'team' ? teamAssets : personalAssets; sourceArray.forEach(asset => { if(selectedAssetIds.has(asset.id)) { asset.type = newType; } }); addAuditLog(`批量修改了 ${idsToUpdate.length} 个分类`); 
+        
+        // ⚡ 手术刀式更新，只修改文字或隐藏不符合当前过滤的卡片
+        idsToUpdate.forEach(id => {
+            const card = document.getElementById(`asset-card-${id}`);
+            if(card) {
+                if (currentAssetFilter !== 'all' && currentAssetFilter !== newType) { card.remove(); } 
+                else { const badge = card.querySelector('.asset-badge'); if(badge) badge.innerText = newType === 'character' ? '👤 角色设定' : '🏞️ 场景概念'; }
+            }
+        });
     } catch(e) {}
     closeBulkCategoryModal(); toggleBulkMode();
 }
@@ -1079,14 +1116,28 @@ function editAsset(id) { editingAssetId = id; const sourceArray = currentLibrary
 async function saveAssetEdit() { 
     const sourceArray = currentLibraryMode === 'team' ? teamAssets : personalAssets; const asset = sourceArray.find(a => a.id === editingAssetId); if(!asset) return; 
     const newTitle = document.getElementById('editAssetTitle').value.trim(); const newType = document.getElementById('editAssetType').value; const newPrompt = document.getElementById('editAssetPrompt').value.trim(); 
-    try { await fetch(`${API_BASE_URL}/api/update_asset`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({id: asset.id, title: newTitle, type: newType, prompt: newPrompt}) }); asset.title = newTitle; asset.type = newType; asset.prompt = newPrompt; } catch(e) {}
-    closeEditAssetModal(); renderAssetGrid(); 
+    try { await fetch(`${API_BASE_URL}/api/update_asset`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({id: asset.id, title: newTitle, type: newType, prompt: newPrompt}) }); asset.title = newTitle; asset.type = newType; asset.prompt = newPrompt; 
+        
+        // ⚡ 手术刀式更新
+        const card = document.getElementById(`asset-card-${editingAssetId}`);
+        if(card) {
+            if (currentAssetFilter !== 'all' && currentAssetFilter !== newType) { card.remove(); } 
+            else { 
+                const titleEl = card.querySelector('.asset-title'); if(titleEl) { titleEl.innerText = newTitle; titleEl.title = newTitle; }
+                const badge = card.querySelector('.asset-badge'); if(badge) badge.innerText = newType === 'character' ? '👤 角色设定' : '🏞️ 场景概念'; 
+            }
+        }
+    } catch(e) {}
+    closeEditAssetModal(); 
 }
 function closeEditAssetModal() { document.getElementById('editAssetModal').classList.remove('show'); }
 function deleteAsset(id) { 
     openConfirmModal(async () => { 
-        try { await fetch(`${API_BASE_URL}/api/delete_asset`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ids: [id]}) }); if (currentLibraryMode === 'team') { teamAssets = teamAssets.filter(a => a.id !== id); } else { personalAssets = personalAssets.filter(a => a.id !== id); } addAuditLog(`删除了素材`); } catch(e) {}
-        renderAssetGrid(); 
+        try { await fetch(`${API_BASE_URL}/api/delete_asset`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ids: [id]}) }); if (currentLibraryMode === 'team') { teamAssets = teamAssets.filter(a => a.id !== id); } else { personalAssets = personalAssets.filter(a => a.id !== id); } addAuditLog(`删除了素材`); 
+        
+            // ⚡ 同样直接移除卡片 DOM
+            const card = document.getElementById(`asset-card-${id}`); if(card) card.remove();
+        } catch(e) {}
     }); 
 }
 function useAssetInGen(assetId) { const sourceArray = currentLibraryMode === 'team' ? teamAssets : personalAssets; const asset = sourceArray.find(a => a.id === assetId); if (!asset) return; extractAndGenerateImage(asset.prompt || '', API_BASE_URL + asset.image); }
