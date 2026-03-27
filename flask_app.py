@@ -402,18 +402,68 @@ def upload_asset():
     ext = os.path.splitext(file.filename)[1]
     if not ext: ext = '.png'
     unique_id = f"asset_{uuid.uuid4().hex}"
-    filename = f"{unique_id}{ext}"
     
-    file_path = os.path.join(ASSETS_DIR, filename)
-    file.save(file_path)
-    rel_path = f"/static/assets/{filename}"
+    rel_path = ""
     
-    if thumb_base64 and "," in thumb_base64:
+    # ================= 腾讯云 COS 必填配置区 =================
+    # 请务必将这里替换成你真实的腾讯云子账号密钥！（和之前生图配的一模一样）
+    COS_SECRET_ID = ''       
+    COS_SECRET_KEY = ''     
+    COS_REGION = ''          
+    COS_BUCKET = '' 
+    # =======================================================
+    
+    if COS_SECRET_ID != '你的_SecretId':
         try:
-            header, encoded = thumb_base64.split(",", 1)
-            thumb_data = base64.b64decode(encoded)
-            with open(os.path.join(ASSETS_DIR, f"{unique_id}_thumb.jpg"), "wb") as f: f.write(thumb_data)
-        except: pass
+            from qcloud_cos import CosConfig
+            from qcloud_cos import CosS3Client
+            import base64
+            
+            config = CosConfig(Region=COS_REGION, SecretId=COS_SECRET_ID, SecretKey=COS_SECRET_KEY)
+            client = CosS3Client(config)
+            
+            # 1. 核心升级：直接将上传的文件流推送到 COS 的 team_assets 目录，绝不落地服务器硬盘！
+            cos_filename = f"team_assets/{unique_id}{ext}"
+            client.put_object(
+                Bucket=COS_BUCKET,
+                Body=file.read(),
+                Key=cos_filename,
+                StorageClass='STANDARD',
+                EnableMD5=False
+            )
+            rel_path = f"https://{COS_BUCKET}.cos.{COS_REGION}.myqcloud.com/{cos_filename}"
+            
+            # 2. 如果前端传了缩略图，一并推送到 COS
+            if thumb_base64 and "," in thumb_base64:
+                try:
+                    header, encoded = thumb_base64.split(",", 1)
+                    thumb_data = base64.b64decode(encoded)
+                    cos_thumb_filename = f"team_assets/{unique_id}_thumb.jpg"
+                    client.put_object(
+                        Bucket=COS_BUCKET,
+                        Body=thumb_data,
+                        Key=cos_thumb_filename,
+                        StorageClass='STANDARD',
+                        EnableMD5=False
+                    )
+                except: pass
+        except Exception as e:
+            print(f"团队素材上传 COS 失败，降级使用本地存储: {e}")
+    
+    # 兜底安全机制：如果没有配置 COS 或网络波动导致上传失败，依然保存在本地服务器防止数据丢失
+    if not rel_path:
+        filename = f"{unique_id}{ext}"
+        file_path = os.path.join(ASSETS_DIR, filename)
+        file.seek(0) # 重置文件指针
+        file.save(file_path)
+        rel_path = f"/static/assets/{filename}"
+        
+        if thumb_base64 and "," in thumb_base64:
+            try:
+                header, encoded = thumb_base64.split(",", 1)
+                thumb_data = base64.b64decode(encoded)
+                with open(os.path.join(ASSETS_DIR, f"{unique_id}_thumb.jpg"), "wb") as f: f.write(thumb_data)
+            except: pass
 
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
