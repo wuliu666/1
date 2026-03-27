@@ -966,7 +966,7 @@ function renderAssetGrid() {
     if (filtered.length === 0) { grid.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: var(--text-secondary);">暂无相关素材，请点击右上角添加。</div>`; return; }
 
     filtered.forEach(asset => {
-        const isSelected = selectedAssetIds.has(asset.id); let cardHtml = `<div class="asset-card ${isSelected ? 'selected' : ''}">`;
+        const isSelected = selectedAssetIds.has(asset.id); let cardHtml = `<div class="asset-card ${isSelected ? 'selected' : ''}" id="asset-card-${asset.id}">`;
         if (isBulkMode) { cardHtml += `<div class="bulk-overlay" onclick="toggleSelectAsset('${asset.id}')"></div><div class="checkbox-icon">✓</div>`; }
        cardHtml += `<div class="canvas-container" title="点击查看安全无码大图" style="width: 100%; height: 240px; background: var(--bg-container); cursor: pointer; display: flex; justify-content: center; align-items: center;" onclick="openFullImage('${asset.id}')" oncontextmenu="return false;" ondragstart="return false;"><canvas id="canvas_${asset.id}" style="width: 100%; height: 100%; object-fit: contain; pointer-events: none;"></canvas></div><div style="padding: 16px;"><div style="font-weight: bold; margin-bottom: 6px; font-size: 1.05rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${asset.title}">${asset.title}</div><div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 12px; display: inline-block; background: var(--bg-container); padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border-color);">${asset.type === 'character' ? '👤 角色设定' : '🏞️ 场景概念'}</div><div style="display: flex; gap: 8px;"><button class="nav-btn" style="flex: 1; padding: 8px; font-size: 0.85rem; border-color: var(--shen-color); color: var(--shen-color);" onclick="useAssetAsReference('${asset.image}')">🪄 垫图</button><button class="nav-btn" style="flex: 1; padding: 8px; font-size: 0.85rem;" onclick="useAssetPrompt('${(asset.prompt||'').replace(/'/g, "\\'")}')">♻️ 提词</button></div>`;
         if (canManage && !isBulkMode) { cardHtml += `<div style="display: flex; gap: 8px; margin-top: 8px;"><button class="nav-btn" style="flex: 1; padding: 6px; font-size: 0.85rem;" onclick="editAsset('${asset.id}')">✏️ 编辑</button><button class="nav-btn" style="flex: 1; padding: 6px; font-size: 0.85rem; border: none; color: var(--danger-color); background: transparent; opacity: 0.7;" onclick="deleteAsset('${asset.id}')" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.7'">🗑️ 删除</button></div>`; }
@@ -1004,20 +1004,37 @@ function toggleBulkMode() {
     }
     renderAssetGrid(); 
 }
-function toggleSelectAsset(id) { if (selectedAssetIds.has(id)) selectedAssetIds.delete(id); else selectedAssetIds.add(id); document.getElementById('bulkSelectCount').innerText = `已选择 ${selectedAssetIds.size} 项`; renderAssetGrid(); }
+function toggleSelectAsset(id) { 
+    if (selectedAssetIds.has(id)) {
+        selectedAssetIds.delete(id);
+        const card = document.getElementById(`asset-card-${id}`);
+        if(card) card.classList.remove('selected');
+    } else { 
+        selectedAssetIds.add(id);
+        const card = document.getElementById(`asset-card-${id}`);
+        if(card) card.classList.add('selected');
+    } 
+    document.getElementById('bulkSelectCount').innerText = `已选择 ${selectedAssetIds.size} 项`; 
+}
 function selectAllAssets() {
     const sourceArray = currentLibraryMode === 'team' ? teamAssets : personalAssets;
     const filtered = currentAssetFilter === 'all' ? sourceArray : sourceArray.filter(a => a.type === currentAssetFilter);
     if (filtered.length === 0) return;
     
-    // 如果当前可见的素材已经被全部选中，则执行取消全选；否则执行全选
     if (selectedAssetIds.size === filtered.length) { 
         selectedAssetIds.clear(); 
+        filtered.forEach(asset => {
+            const card = document.getElementById(`asset-card-${asset.id}`);
+            if(card) card.classList.remove('selected');
+        });
     } else { 
-        filtered.forEach(asset => selectedAssetIds.add(asset.id)); 
+        filtered.forEach(asset => {
+            selectedAssetIds.add(asset.id); 
+            const card = document.getElementById(`asset-card-${asset.id}`);
+            if(card) card.classList.add('selected');
+        }); 
     }
     document.getElementById('bulkSelectCount').innerText = `已选择 ${selectedAssetIds.size} 项`;
-    renderAssetGrid();
 }
 
 async function executeBulkDownload() {
