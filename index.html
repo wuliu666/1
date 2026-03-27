@@ -311,6 +311,7 @@
 <div class="bulk-toolbar" id="bulkToolbar" style="display: none;">
     <div style="display:flex; align-items:center; gap:16px;">
         <span id="bulkSelectCount" style="font-weight:bold;">已选择 0 项</span>
+        <button class="nav-btn" onclick="selectAllAssets()" title="全选或取消全选当前列表的所有素材">☑️ 全选/取消</button>
         <button class="nav-btn" style="background: var(--bg-user-msg); color: white; border-color: var(--bg-user-msg);" onclick="executeBulkDownload()" title="将选中的素材打包下载为 ZIP 文件">⬇️ 批量下载</button>
         <button class="nav-btn" id="bulkCategoryBtn" onclick="openBulkCategoryModal()" title="统一修改所选素材的分类">🗂️ 批量分类</button>
         <button class="nav-btn" id="bulkDeleteBtn" style="color: var(--danger-color); border-color: var(--danger-color);" onclick="executeBulkDelete()" title="永久删除所选素材">🗑️ 批量删除</button>

@@ -307,7 +307,16 @@ async function confirmChangeKey() {
 }
 
 window.copyAdminKey = function(text, btn) { copyToClipboard(text); const original = btn.innerHTML; btn.innerHTML = '✅ 已复制'; btn.style.color = '#ffffff'; btn.style.backgroundColor = '#34c759'; btn.style.borderColor = '#34c759'; setTimeout(() => { btn.innerHTML = original; btn.style.color = ''; btn.style.backgroundColor = ''; btn.style.borderColor = ''; }, 2000); };
-function openConfirmModal(callback) { pendingConfirmCallback = callback; document.getElementById('confirmModal').classList.add('show'); }
+
+// 💡 全局拦截原生的顶部 alert 弹窗，将其强制替换为您写好的居中 Toast
+window.alert = function(msg) { showToast(msg); };
+
+function openConfirmModal(callback, customText) { 
+    pendingConfirmCallback = callback; 
+    const p = document.querySelector('#confirmModal p');
+    if (p) p.innerHTML = customText || "您确定要执行此操作吗？";
+    document.getElementById('confirmModal').classList.add('show'); 
+}
 function closeConfirmModal() { document.getElementById('confirmModal').classList.remove('show'); pendingConfirmCallback = null; }
 function executeConfirm() { if(pendingConfirmCallback) pendingConfirmCallback(); closeConfirmModal(); }
 
@@ -616,7 +625,11 @@ async function refreshKeyList() {
 }
 
 async function toggleKeyStatus(t) { const ak = localStorage.getItem('user_secret_key'); await fetch(`${API_BASE_URL}/admin/toggle_delete`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({admin_key:ak, target_key:t}) }); addAuditLog(`更改了密钥状态: ${t}`); await refreshKeyList(); }
-async function hardDeleteKey(t) { if(!confirm('🚨 危险操作：确定要彻底删除吗？')) return; const ak = localStorage.getItem('user_secret_key'); await fetch(`${API_BASE_URL}/admin/hard_delete`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({admin_key:ak, target_key:t}) }); addAuditLog(`彻底删除了密钥: ${t}`); await refreshKeyList(); }
+async function hardDeleteKey(t) { 
+    openConfirmModal(async () => {
+        const ak = localStorage.getItem('user_secret_key'); await fetch(`${API_BASE_URL}/admin/hard_delete`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({admin_key:ak, target_key:t}) }); addAuditLog(`彻底删除了密钥: ${t}`); await refreshKeyList(); 
+    }, '🚨 危险操作：确定要彻底删除吗？');
+}
 async function generateNewKey() { const ak = localStorage.getItem('user_secret_key'); const n = document.getElementById('newKeyNote').value.trim(); if(!n) return alert("请输入备注"); await fetch(`${API_BASE_URL}/admin/create`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({admin_key:ak, note:n}) }); document.getElementById('newKeyNote').value = ''; addAuditLog(`生成了新密钥`); await refreshKeyList(); }
 function openQuotaModal(key, currentLimit) { targetQuotaKey = key; document.getElementById('quotaInput').value = currentLimit; document.getElementById('quotaModal').classList.add('show'); }
 function closeQuotaModal() { document.getElementById('quotaModal').classList.remove('show'); targetQuotaKey = null; }
@@ -735,13 +748,14 @@ function exportAuditLogsCSV() {
 }
 
 async function clearAuditLogs() {
-    if(!confirm("🚨 危险操作：确定要永久清空所有成员的操作日志吗？此操作不可恢复！")) return;
-    try {
-        await fetch(`${API_BASE_URL}/admin/clear_logs`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({admin_key: currentUserKey}) });
-        document.getElementById('auditSearchInput').value = '';
-        addAuditLog('管理员高危操作：清空了系统审计日志');
-        renderAuditLogs();
-    } catch(e) { alert("清空失败"); }
+    openConfirmModal(async () => {
+        try {
+            await fetch(`${API_BASE_URL}/admin/clear_logs`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({admin_key: currentUserKey}) });
+            document.getElementById('auditSearchInput').value = '';
+            addAuditLog('管理员高危操作：清空了系统审计日志');
+            renderAuditLogs();
+        } catch(e) { alert("清空失败"); }
+    }, "🚨 危险操作：确定要永久清空所有成员的操作日志吗？此操作不可恢复！");
 }
 
 // ==================== 个人数据库全量备份与跨设备恢复引擎 ====================
@@ -752,43 +766,71 @@ async function exportLocalLibrary() {
     const dataStr = JSON.stringify(allAssets);
     const estimatedSizeMB = (new Blob([dataStr]).size / (1024 * 1024)).toFixed(2);
     
-    const confirmMsg = `当前图库共 ${allAssets.length} 项素材，预计全量数据库备份大小约 ${estimatedSizeMB} MB。\n\n⚠️ 【温馨提示】\n每次备份都会生成一个全新的数据库文件。\n为防止占用您过多的电脑存储空间，建议您在下载完成后手动删除旧备份！\n\n是否继续下载本次备份？`;
+    const confirmMsg = `当前图库共 <b>${allAssets.length}</b> 项素材，预计全量数据库备份约 <b>${estimatedSizeMB} MB</b>。<br><br><span style="color: var(--text-secondary); font-size: 0.9em; line-height: 1.5; display: block; text-align: left; background: var(--bg-hover); padding: 10px; border-radius: 8px;">💡 <b>温馨提示：</b><br>每次备份都会生成新文件，建议下载后及时清理旧备份，以免占用过多存储空间。</span><br>是否继续下载？`;
     
-    if (!confirm(confirmMsg)) return;
-
-    showToast("📦 正在生成全量数据库文件，请稍候...");
-    const blob = new Blob([dataStr], {type: "application/json"});
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url; 
-    
-    const timeStr = new Date().toLocaleTimeString('zh-CN', {hour12:false}).replace(/:/g, '');
-    const dateStr = new Date().toISOString().split('T')[0];
-    link.download = `九雨本地数据库备份_${dateStr}_${timeStr}.json`;
-    
-    link.click(); URL.revokeObjectURL(url);
-    showToast("✅ 数据库备份已完成！换电脑时可直接导入此文件恢复。");
+    openConfirmModal(() => {
+        showToast("📦 正在生成全量数据库文件，请稍候...");
+        const blob = new Blob([dataStr], {type: "application/json"});
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url; 
+        
+        const timeStr = new Date().toLocaleTimeString('zh-CN', {hour12:false}).replace(/:/g, '');
+        const dateStr = new Date().toISOString().split('T')[0];
+        link.download = `九雨本地数据库备份_${dateStr}_${timeStr}.json`;
+        
+        link.click(); URL.revokeObjectURL(url);
+        showToast("✅ 数据库备份已完成！换电脑时可直接导入此文件恢复。");
+    }, confirmMsg);
 }
 
 function triggerImportLocalLibrary() {
     const input = document.createElement('input'); input.type = 'file'; input.accept = '.json';
     input.onchange = e => {
         const file = e.target.files[0]; if(!file) return;
-        const reader = new FileReader();
-        reader.onload = async ev => {
-            try {
-                const importedAssets = JSON.parse(ev.target.result);
-                if (!Array.isArray(importedAssets)) throw new Error("无效格式");
-                
-                showToast(`⏳ 正在跨设备恢复 ${importedAssets.length} 个素材，请勿关闭页面...`);
-                await initLocalDB();
-                for(let asset of importedAssets) { await localDB.save(asset); } 
-                
-                showToast("✅ 数据库全量恢复成功！即将为您刷新界面...");
-                setTimeout(() => location.reload(), 1500); 
-            } catch(err) { alert("❌ 备份文件损坏或格式不正确！"); }
-        }; reader.readAsText(file);
+        processDatabaseFile(file);
     }; input.click();
+}
+
+function processDatabaseFile(file) {
+    const reader = new FileReader();
+    reader.onload = async ev => {
+        try {
+            const importedAssets = JSON.parse(ev.target.result);
+            if (!Array.isArray(importedAssets)) throw new Error("无效格式");
+            
+            await initLocalDB();
+            for(let asset of importedAssets) { await localDB.save(asset); } 
+            
+            showToast("✅ 数据库全量恢复成功！即将为您刷新界面...");
+            setTimeout(() => location.reload(), 1500); 
+        } catch(err) { alert("❌ 备份文件损坏或格式不正确！"); }
+    }; reader.readAsText(file);
+}
+function handleLibraryDragOver(e) {
+    e.preventDefault();
+    const overlay = document.getElementById('libraryDragOverlay');
+    if (overlay) overlay.style.display = 'flex';
+}
+function handleLibraryDragLeave(e) {
+    e.preventDefault();
+    const overlay = document.getElementById('libraryDragOverlay');
+    // 如果鼠标离开的是父容器区域，才隐藏蒙层
+    if (overlay && e.target === e.currentTarget) overlay.style.display = 'none';
+}
+function handleLibraryDrop(e) {
+    e.preventDefault();
+    const overlay = document.getElementById('libraryDragOverlay');
+    if (overlay) overlay.style.display = 'none';
+    
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        const file = e.dataTransfer.files[0];
+        if (file.name.endsWith('.json')) {
+            processDatabaseFile(file);
+        } else {
+            showToast("⚠️ 格式错误：请拖入 .json 格式的数据库备份文件！");
+        }
+    }
 }
 // =================================================================================
 
@@ -798,9 +840,9 @@ function renderAssetLibraryTool(mode) {
     const canUpload = isPersonal || isAdmin;
 
     let html = `
-    <div class="hub-wrapper">
+    <div class="hub-wrapper" ${isPersonal ? 'ondragover="handleLibraryDragOver(event)" ondragleave="handleLibraryDragLeave(event)" ondrop="handleLibraryDrop(event)" style="position: relative;"' : ''}>
+        ${isPersonal ? '<div id="libraryDragOverlay" style="display: none; position: absolute; inset: 0; background: rgba(0, 122, 255, 0.1); border: 2px dashed var(--bg-user-msg); z-index: 100; border-radius: 12px; justify-content: center; align-items: center; font-size: 1.5rem; color: var(--bg-user-msg); font-weight: bold; backdrop-filter: blur(4px); pointer-events: none;">📥 松开鼠标，立即恢复数据库备份</div>' : ''}
         <div style="max-width: 1000px; margin: 0 auto; width: 100%; padding: 30px; box-sizing: border-box; animation: pop 0.3s ease;">
-            
             <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; border-bottom: 1px solid var(--border-color); padding-bottom: 16px;">
                 <div>
                     <h2 style="margin: 0 0 6px 0;">${titleText}</h2>
@@ -865,9 +907,8 @@ async function generateThumbnail(file) {
 
 async function handleBatchAssetUpload(input) {
     if (!input.files || input.files.length === 0) return;
-    const files = Array.from(input.files); let upCount = 0; showToast(`正在上传 ${files.length} 张图片到云服务器，请稍候...`);
+    const files = Array.from(input.files); let upCount = 0; 
     const uploadBtn = document.getElementById('uploadNewAssetBtn'); if(uploadBtn) uploadBtn.disabled = true;
-
     for (let file of files) { 
         const thumbData = await generateThumbnail(file);
         const formData = new FormData(); formData.append('file', file); formData.append('title', file.name.substring(0, file.name.lastIndexOf('.')) || file.name); formData.append('type', 'character'); formData.append('library_mode', currentLibraryMode); formData.append('user_key', currentUserKey); formData.append('thumb_base64', thumbData);
@@ -881,7 +922,7 @@ async function handleBatchAssetUpload(input) {
     }
     
     addAuditLog(`上传了 ${upCount} 张图片`); input.value = ''; if(uploadBtn) uploadBtn.disabled = false;
-    showToast(`✅ 成功永久存入 ${upCount} 张图片至云服务器！`); document.getElementById('chatBox').innerHTML = renderAssetLibraryTool(currentLibraryMode); renderAssetGrid();
+    showToast("上传成功"); document.getElementById('chatBox').innerHTML = renderAssetLibraryTool(currentLibraryMode); renderAssetGrid();
 }
 
 function filterAssets(type) { currentAssetFilter = type; if(currentChatId === TEAM_ASSET_ID || currentChatId === PERSONAL_ASSET_ID) { document.getElementById('chatBox').innerHTML = renderAssetLibraryTool(currentLibraryMode); renderAssetGrid(); } }
@@ -934,6 +975,20 @@ function renderAssetGrid() {
 
 function toggleBulkMode() { isBulkMode = !isBulkMode; selectedAssetIds.clear(); document.getElementById('chatBox').innerHTML = renderAssetLibraryTool(currentLibraryMode); renderAssetGrid(); }
 function toggleSelectAsset(id) { if (selectedAssetIds.has(id)) selectedAssetIds.delete(id); else selectedAssetIds.add(id); document.getElementById('bulkSelectCount').innerText = `已选择 ${selectedAssetIds.size} 项`; renderAssetGrid(); }
+function selectAllAssets() {
+    const sourceArray = currentLibraryMode === 'team' ? teamAssets : personalAssets;
+    const filtered = currentAssetFilter === 'all' ? sourceArray : sourceArray.filter(a => a.type === currentAssetFilter);
+    if (filtered.length === 0) return;
+    
+    // 如果当前可见的素材已经被全部选中，则执行取消全选；否则执行全选
+    if (selectedAssetIds.size === filtered.length) { 
+        selectedAssetIds.clear(); 
+    } else { 
+        filtered.forEach(asset => selectedAssetIds.add(asset.id)); 
+    }
+    document.getElementById('bulkSelectCount').innerText = `已选择 ${selectedAssetIds.size} 项`;
+    renderAssetGrid();
+}
 
 async function executeBulkDownload() {
     if(selectedAssetIds.size === 0) return alert("请先选择要下载的素材！");
