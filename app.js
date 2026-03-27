@@ -856,14 +856,14 @@ function renderAssetLibraryTool(mode) {
                     
                     if (isPersonal) {
                         html += `
-                        <button onclick="exportLocalLibrary()" style="background: transparent; color: var(--text-main); border: 1px dashed var(--border-color); padding: 8px 12px; border-radius: 8px; cursor: pointer; font-size: 0.85rem; transition: 0.2s;" onmouseover="this.style.backgroundColor='var(--bg-hover)'" onmouseout="this.style.backgroundColor='transparent'" title="打包下载到硬盘">📥 备份数据</button>
-                        <button onclick="triggerImportLocalLibrary()" style="background: transparent; color: var(--text-main); border: 1px dashed var(--border-color); padding: 8px 12px; border-radius: 8px; cursor: pointer; font-size: 0.85rem; transition: 0.2s;" onmouseover="this.style.backgroundColor='var(--bg-hover)'" onmouseout="this.style.backgroundColor='transparent'" title="从备份文件恢复">📤 恢复数据</button>
+                        <button onclick="exportLocalLibrary()" style="background: var(--bg-input); color: var(--text-main); border: 1px solid var(--border-color); padding: 8px 14px; border-radius: 8px; cursor: pointer; font-size: 0.9rem; font-weight: 500; transition: 0.2s;" onmouseover="this.style.backgroundColor='var(--bg-hover)'" onmouseout="this.style.backgroundColor='var(--bg-input)'" title="打包下载到硬盘">📥 备份数据</button>
+                        <button onclick="triggerImportLocalLibrary()" style="background: var(--bg-input); color: var(--text-main); border: 1px solid var(--border-color); padding: 8px 14px; border-radius: 8px; cursor: pointer; font-size: 0.9rem; font-weight: 500; transition: 0.2s;" onmouseover="this.style.backgroundColor='var(--bg-hover)'" onmouseout="this.style.backgroundColor='var(--bg-input)'" title="从备份文件恢复">📤 恢复数据</button>
                         <div style="width: 1px; height: 20px; background: var(--border-color); margin: 0 5px;"></div>
                         `;
                     }
 
-                    html += `<button onclick="toggleBulkMode()" style="background: var(--bg-input); color: var(--text-main); border: 1px solid var(--border-color); padding: 8px 16px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 0.9rem;">☑️ 批量管理</button>`;
-                    if (canUpload) { html += `<button id="uploadNewAssetBtn" onclick="document.getElementById('batchAssetUpload').click()" style="background: var(--bg-user-msg); color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 0.9rem;">＋ 添加新素材</button>`; }
+                    html += `<button onclick="toggleBulkMode()" style="background: var(--bg-input); color: var(--text-main); border: 1px solid var(--border-color); padding: 8px 14px; border-radius: 8px; cursor: pointer; font-weight: 500; font-size: 0.9rem; transition: 0.2s;" onmouseover="this.style.backgroundColor='var(--bg-hover)'" onmouseout="this.style.backgroundColor='var(--bg-input)'">☑️ 批量管理</button>`;
+                    if (canUpload) { html += `<button id="uploadNewAssetBtn" onclick="document.getElementById('batchAssetUpload').click()" style="background: var(--bg-user-msg); color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 0.9rem; box-shadow: 0 2px 6px rgba(0,0,0,0.1); transition: 0.2s;" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">＋ 添加新素材</button>`; }
                     html += `
                 </div>
             </div>
@@ -934,17 +934,19 @@ async function handleBatchAssetUpload(input) {
     showToast("上传成功"); renderAssetGrid();
 }
 
-function filterAssets(type) { 
-    currentAssetFilter = type; 
-    if(currentChatId === TEAM_ASSET_ID || currentChatId === PERSONAL_ASSET_ID) { 
-        const tabs = document.querySelectorAll('#filterTabGroup .nav-btn');
-        if(tabs.length > 0) {
-            tabs.forEach(btn => btn.classList.remove('active'));
-            const activeBtn = document.querySelector(`#filterTabGroup .nav-btn[data-filter="${type}"]`);
-            if(activeBtn) activeBtn.classList.add('active');
-        }
-        renderAssetGrid(); 
-    } 
+function filterAssets(type) {
+    currentAssetFilter = type;
+    if(currentChatId === TEAM_ASSET_ID || currentChatId === PERSONAL_ASSET_ID) {
+        // 💡 暴力清除：直接获取页面上所有作为过滤器的按钮，无差别移除高亮状态
+        const allFilterBtns = document.querySelectorAll('button[data-filter]');
+        allFilterBtns.forEach(btn => btn.classList.remove('active'));
+        
+        // 💡 精准点亮：只给当前点击的分类加上高亮状态
+        const activeBtns = document.querySelectorAll(`button[data-filter="${type}"]`);
+        activeBtns.forEach(btn => btn.classList.add('active'));
+        
+        renderAssetGrid();
+    }
 }
 
 function drawTeamWatermark(canvas, ctx) {
@@ -997,16 +999,32 @@ function toggleBulkMode() {
     isBulkMode = !isBulkMode; 
     selectedAssetIds.clear(); 
     
+    // ⚡ 柔和隐藏顶层按钮，避免 display: none 造成高度瞬间塌陷导致整个页面上跳
     const headerBtns = document.getElementById('libraryHeaderBtns');
-    if (headerBtns) headerBtns.style.display = isBulkMode ? 'none' : 'flex';
+    if (headerBtns) {
+        if (isBulkMode) {
+            headerBtns.style.opacity = '0';
+            headerBtns.style.pointerEvents = 'none';
+            setTimeout(() => headerBtns.style.display = 'none', 200);
+        } else {
+            headerBtns.style.display = 'flex';
+            setTimeout(() => {
+                headerBtns.style.opacity = '1';
+                headerBtns.style.pointerEvents = 'auto';
+            }, 10);
+        }
+    }
 
     const toolbar = document.getElementById('bulkToolbar');
     if (toolbar) {
         if (isBulkMode) { 
             toolbar.style.opacity = '0';
+            toolbar.style.transform = 'translateY(10px)'; // 初始偏下一点点
             toolbar.style.display = 'flex'; 
-            // 用一点微小的延迟让浏览器先渲染 display，然后再改变 opacity，触发动画
-            setTimeout(() => toolbar.style.opacity = '1', 10);
+            setTimeout(() => {
+                toolbar.style.opacity = '1';
+                toolbar.style.transform = 'translateY(0)'; // 平滑上浮对齐
+            }, 10);
             
             document.getElementById('bulkSelectCount').innerText = `已选择 0 项`; 
             const canManage = currentLibraryMode === 'personal' || isAdmin; 
@@ -1014,11 +1032,12 @@ function toggleBulkMode() {
             document.getElementById('bulkDeleteBtn').style.display = canManage ? 'inline-block' : 'none'; 
         } else { 
             toolbar.style.opacity = '0';
-            setTimeout(() => toolbar.style.display = 'none', 200); // 等待淡出动画完成后再隐藏
+            toolbar.style.transform = 'translateY(10px)';
+            setTimeout(() => toolbar.style.display = 'none', 200); 
         }
     }
     
-    // ⚡ 极速无感切换
+    // ⚡ 极速无感切换蒙层
     document.querySelectorAll('.asset-card').forEach(card => card.classList.remove('selected'));
     document.querySelectorAll('.bulk-overlay').forEach(el => el.style.display = isBulkMode ? 'block' : 'none');
     document.querySelectorAll('.checkbox-icon').forEach(el => el.style.display = isBulkMode ? 'flex' : 'none');
@@ -1144,25 +1163,135 @@ function extractAndGenerateImage(promptText, referenceImage = null) {
     document.getElementById('imgGenInput').value = promptText.replace(/[【】🎬]/g, '').trim(); 
 }
 
-function renderImageSplitterTool() { return `<div class="hub-wrapper"><div style="max-width:650px;margin:0 auto;width:100%;padding:30px;background:var(--bg-container);border-radius:12px;border:1px solid var(--border-color);color:var(--text-main);box-sizing:border-box;"><h2 style="text-align:center;margin-top:0;margin-bottom:24px;">🧩 批量图片拆分工具</h2><div style="background:var(--bg-input);border:1px solid var(--border-color);padding:18px;margin-bottom:20px;border-radius:10px;"><div style="font-weight:600;margin-bottom:12px;color:var(--shen-color);">1. 拆分设置</div><div style="display:flex;gap:20px;"><label style="display:flex;align-items:center;gap:8px;">行数: <input type="number" id="splitRows" value="2" min="1" style="width:70px;padding:6px;border-radius:6px;border:1px solid var(--border-color);background:var(--bg-container);color:var(--text-main);outline:none;"></label><label style="display:flex;align-items:center;gap:8px;">列数: <input type="number" id="splitCols" value="2" min="1" style="width:70px;padding:6px;border-radius:6px;border:1px solid var(--border-color);background:var(--bg-container);color:var(--text-main);outline:none;"></label></div></div><div style="background:var(--bg-input);border:1px solid var(--border-color);padding:18px;margin-bottom:20px;border-radius:10px;"><div style="font-weight:600;margin-bottom:12px;"><label style="cursor:pointer;display:flex;align-items:center;gap:8px;"><input type="checkbox" id="enableWm" onchange="document.getElementById('wmSettings').style.display=this.checked?'block':'none'"> 2. 开启去水印 (色块覆盖法)</label></div><div id="wmSettings" style="display:none;padding-top:10px;border-top:1px dashed var(--border-color);"><div style="display:flex;gap:15px;margin-bottom:12px;flex-wrap:wrap;"><label style="display:flex;align-items:center;gap:5px;">X: <input type="number" id="wmX" value="0" style="width:60px;padding:6px;border-radius:6px;border:1px solid var(--border-color);background:var(--bg-container);color:var(--text-main);"></label><label style="display:flex;align-items:center;gap:5px;">Y: <input type="number" id="wmY" value="0" style="width:60px;padding:6px;border-radius:6px;border:1px solid var(--border-color);background:var(--bg-container);color:var(--text-main);"></label><label style="display:flex;align-items:center;gap:5px;">W: <input type="number" id="wmW" value="150" style="width:60px;padding:6px;border-radius:6px;border:1px solid var(--border-color);background:var(--bg-container);color:var(--text-main);"></label><label style="display:flex;align-items:center;gap:5px;">H: <input type="number" id="wmH" value="50" style="width:60px;padding:6px;border-radius:6px;border:1px solid var(--border-color);background:var(--bg-container);color:var(--text-main);"></label></div><label style="display:flex;align-items:center;gap:8px;">颜色: <input type="color" id="wmColor" value="#ffffff" style="border:none;border-radius:4px;cursor:pointer;background:transparent;padding:0;height:28px;width:40px;"></label></div></div><div style="background:var(--bg-input);border:1px solid var(--border-color);padding:18px;margin-bottom:24px;border-radius:10px;"><div style="font-weight:600;margin-bottom:12px;color:var(--shen-color);">3. 批量上传</div><input type="file" id="splitUpload" accept="image/jpeg, image/png, image/webp" multiple style="width:100%;color:var(--text-main);padding:10px;border:1px dashed var(--border-color);border-radius:8px;background:var(--bg-container);cursor:pointer;"></div><button id="processSplitBtn" onclick="runImageSplitter()" style="background-color:var(--bg-user-msg);color:white;border:none;padding:14px 20px;font-size:1rem;border-radius:8px;cursor:pointer;width:100%;font-weight:600;transition:0.2s;">🚀 开始处理并打包下载 (ZIP)</button><div id="splitStatus" style="margin-top:18px;font-size:0.95rem;color:var(--highlight-color);font-weight:600;text-align:center;"></div></div></div>`; }
-async function runImageSplitter() {
-    const uploadInput = document.getElementById('splitUpload'); const statusDiv = document.getElementById('splitStatus'); const processBtn = document.getElementById('processSplitBtn'); const files = uploadInput.files;
-    if (files.length === 0) return alert('请先选择图片');
-    statusDiv.innerText = '正在处理，请稍候...'; processBtn.disabled = true;
-    const zip = new JSZip(), rows = parseInt(document.getElementById('splitRows').value), cols = parseInt(document.getElementById('splitCols').value);
-    const wmConfig = { enabled: document.getElementById('enableWm').checked, x: parseInt(document.getElementById('wmX').value), y: parseInt(document.getElementById('wmY').value), w: parseInt(document.getElementById('wmW').value), h: parseInt(document.getElementById('wmH').value), color: document.getElementById('wmColor').value };
+window.handleSplitToolDragOver = function(e) { e.preventDefault(); e.currentTarget.style.borderColor = 'var(--highlight-color)'; e.currentTarget.style.background = 'var(--bg-hover)'; };
+window.handleSplitToolDragLeave = function(e) { e.preventDefault(); e.currentTarget.style.borderColor = 'var(--border-color)'; e.currentTarget.style.background = 'var(--bg-input)'; };
+window.handleSplitToolDrop = function(e) { 
+    e.preventDefault(); e.currentTarget.style.borderColor = 'var(--border-color)'; e.currentTarget.style.background = 'var(--bg-input)'; 
+    const files = e.dataTransfer.files; if (files && files.length > 0) { document.getElementById('splitUpload').files = files; window.updateSplitUploadLabel(document.getElementById('splitUpload')); } 
+};
+window.updateSplitUploadLabel = function(input) { 
+    if(input.files && input.files.length > 0) { document.getElementById('splitUploadLabel').innerText = `✅ 已成功载入 ${input.files.length} 张图片！`; document.getElementById('splitUploadLabel').style.color = '#34c759'; } 
+    else { document.getElementById('splitUploadLabel').innerText = '点击此处选择图片，或将图片拖拽到这里'; document.getElementById('splitUploadLabel').style.color = 'var(--text-main)'; } 
+};
+window.updateWmPreset = function() { const val = document.getElementById('wmPreset').value; document.getElementById('customWmCoords').style.display = (val === 'custom') ? 'flex' : 'none'; };
+
+function renderImageSplitterTool() { return `<div class="hub-wrapper">
+    <div style="max-width:850px; margin:0 auto; width:100%; padding:30px; background:var(--bg-container); border-radius:12px; border:1px solid var(--border-color); color:var(--text-main); box-sizing:border-box;">
+        <h2 style="text-align:center; margin-top:0; margin-bottom:24px;">🧩 拆分与去水印实验室</h2>
+        
+        <div style="font-weight:600; margin-bottom:12px; color:var(--shen-color);">1. 拖拽批量上传图片</div>
+        <label id="splitDropZone" ondragover="handleSplitToolDragOver(event)" ondragleave="handleSplitToolDragLeave(event)" ondrop="handleSplitToolDrop(event)" style="display:block; width:100%; padding:40px 20px; border:2px dashed var(--border-color); border-radius:10px; text-align:center; cursor:pointer; background:var(--bg-input); transition:all 0.2s; margin-bottom:24px; box-sizing:border-box;">
+            <div style="font-size:2.5rem; margin-bottom:10px; opacity:0.8;">📥</div>
+            <div id="splitUploadLabel" style="font-size:1.1rem; font-weight:bold; color:var(--text-main);">点击此处选择图片，或将图片直接拖拽到这里</div>
+            <div style="font-size:0.85rem; color:var(--text-secondary); margin-top:8px;">支持 JPG / PNG / WEBP 格式，可一次性多选</div>
+            <input type="file" id="splitUpload" accept="image/jpeg, image/png, image/webp" multiple style="display:none;" onchange="updateSplitUploadLabel(this)">
+        </label>
+
+        <div style="display:flex; gap:20px; flex-wrap:wrap;">
+            <div style="flex:1; min-width:300px; background:var(--bg-input); border:1px solid var(--border-color); padding:20px; border-radius:10px; display:flex; flex-direction:column; justify-content:space-between;">
+                <div>
+                    <div style="font-weight:bold; font-size:1.1rem; margin-bottom:15px; display:flex; align-items:center; gap:8px;">✂️ 多宫格拆分</div>
+                    <div style="color:var(--text-secondary); font-size:0.85rem; margin-bottom:15px; line-height:1.5;">将长图或多宫格漫画等分裁切为多张单图。</div>
+                    <div style="display:flex; gap:15px; margin-bottom:20px; flex-wrap:wrap;">
+                        <label style="display:flex; align-items:center; gap:8px;">行数 (横切): <input type="number" id="splitRows" value="2" min="1" style="width:60px; padding:8px; border-radius:6px; border:1px solid var(--border-color); background:var(--bg-container); color:var(--text-main);"></label>
+                        <label style="display:flex; align-items:center; gap:8px;">列数 (竖切): <input type="number" id="splitCols" value="2" min="1" style="width:60px; padding:8px; border-radius:6px; border:1px solid var(--border-color); background:var(--bg-container); color:var(--text-main);"></label>
+                    </div>
+                </div>
+                <button onclick="processToolImages('split')" style="background-color:var(--bg-user-msg); color:white; border:none; padding:14px; font-size:1rem; border-radius:8px; cursor:pointer; width:100%; font-weight:bold; transition:0.2s;" onmouseover="this.style.opacity=0.8" onmouseout="this.style.opacity=1">⚡ 仅执行拆分并打包下载</button>
+            </div>
+
+            <div style="flex:1; min-width:300px; background:var(--bg-input); border:1px solid var(--border-color); padding:20px; border-radius:10px; display:flex; flex-direction:column; justify-content:space-between;">
+                <div>
+                    <div style="font-weight:bold; font-size:1.1rem; margin-bottom:15px; display:flex; align-items:center; gap:8px;">🌫️ 智能去水印</div>
+                    <div style="color:var(--text-secondary); font-size:0.85rem; margin-bottom:15px; line-height:1.5;">利用像素化算法或纯色块抹除图片角落的指定标识。</div>
+                    
+                    <div style="display:flex; gap:10px; margin-bottom:12px; flex-wrap:wrap; align-items:center;">
+                        <label style="display:flex; align-items:center; gap:5px;">位置: <select id="wmPreset" onchange="updateWmPreset()" style="padding:6px; border-radius:6px; border:1px solid var(--border-color); background:var(--bg-container); color:var(--text-main);"><option value="bottom-right">↘️ 右下角</option><option value="bottom-left">↙️ 左下角</option><option value="top-right">↗️ 右上角</option><option value="top-left">↖️ 左上角</option><option value="custom">⚙️ 自定义</option></select></label>
+                        <label style="display:flex; align-items:center; gap:5px;">宽: <input type="number" id="wmW" value="240" style="width:50px; padding:6px; border-radius:6px; border:1px solid var(--border-color); background:var(--bg-container); color:var(--text-main);"></label>
+                        <label style="display:flex; align-items:center; gap:5px;">高: <input type="number" id="wmH" value="80" style="width:50px; padding:6px; border-radius:6px; border:1px solid var(--border-color); background:var(--bg-container); color:var(--text-main);"></label>
+                    </div>
+                    <div id="customWmCoords" style="display:none; gap:10px; margin-bottom:12px; flex-wrap:wrap;">
+                        <label style="display:flex; align-items:center; gap:5px;">X坐标: <input type="number" id="wmX" value="0" style="width:60px; padding:6px; border-radius:6px; border:1px solid var(--border-color); background:var(--bg-container); color:var(--text-main);"></label>
+                        <label style="display:flex; align-items:center; gap:5px;">Y坐标: <input type="number" id="wmY" value="0" style="width:60px; padding:6px; border-radius:6px; border:1px solid var(--border-color); background:var(--bg-container); color:var(--text-main);"></label>
+                    </div>
+                    <div style="display:flex; gap:10px; align-items:center; margin-bottom:20px;">
+                        <label style="display:flex; align-items:center; gap:5px;">方式: <select id="wmType" style="padding:6px; border-radius:6px; border:1px solid var(--border-color); background:var(--bg-container); color:var(--text-main);"><option value="mosaic">🌫️ 智能马赛克</option><option value="color">🎨 纯色块覆盖</option></select></label>
+                        <label style="display:flex; align-items:center; gap:5px;">颜色: <input type="color" id="wmColor" value="#ffffff" style="border:none; border-radius:4px; cursor:pointer; background:transparent; padding:0; height:28px; width:30px;" title="仅在纯色覆盖时生效"></label>
+                    </div>
+                </div>
+                <button onclick="processToolImages('watermark')" style="background-color:#34c759; color:white; border:none; padding:14px; font-size:1rem; border-radius:8px; cursor:pointer; width:100%; font-weight:bold; transition:0.2s;" onmouseover="this.style.opacity=0.8" onmouseout="this.style.opacity=1">✨ 仅执行去水印并打包下载</button>
+            </div>
+        </div>
+        <div id="splitStatus" style="margin-top:20px; font-size:1.05rem; color:var(--highlight-color); font-weight:bold; text-align:center;"></div>
+    </div>
+</div>`; }
+
+async function processToolImages(mode) {
+    const uploadInput = document.getElementById('splitUpload'); const statusDiv = document.getElementById('splitStatus'); const files = uploadInput.files;
+    if (!files || files.length === 0) { showToast('⚠️ 请先点击或拖拽上传图片！'); return; }
+    
+    statusDiv.innerText = mode === 'split' ? '✂️ 正在执行裁切处理，请稍候...' : '🌫️ 正在执行去水印处理，请稍候...'; 
+    const zip = new JSZip(); 
+    
+    const rows = parseInt(document.getElementById('splitRows').value) || 1;
+    const cols = parseInt(document.getElementById('splitCols').value) || 1;
+    
+    const wmConfig = { preset: document.getElementById('wmPreset').value, type: document.getElementById('wmType').value, x: parseInt(document.getElementById('wmX').value) || 0, y: parseInt(document.getElementById('wmY').value) || 0, w: parseInt(document.getElementById('wmW').value) || 100, h: parseInt(document.getElementById('wmH').value) || 50, color: document.getElementById('wmColor').value };
+    
     for (let i = 0; i < files.length; i++) {
         await new Promise((resolve) => {
             const img = new Image(); img.src = URL.createObjectURL(files[i]);
             img.onload = () => {
-                const mainCanvas = document.createElement('canvas'); mainCanvas.width = img.width; mainCanvas.height = img.height; const mainCtx = mainCanvas.getContext('2d'); mainCtx.drawImage(img, 0, 0);
-                if (wmConfig.enabled) { mainCtx.fillStyle = wmConfig.color; mainCtx.fillRect(wmConfig.x, wmConfig.y, wmConfig.w, wmConfig.h); }
-                const pieceWidth = img.width / cols, pieceHeight = img.height / rows, originalName = files[i].name.substring(0, files[i].name.lastIndexOf('.')) || files[i].name;
-                for (let r = 0; r < rows; r++) { for (let c = 0; c < cols; c++) { const pieceCanvas = document.createElement('canvas'); pieceCanvas.width = pieceWidth; pieceCanvas.height = pieceHeight; const pieceCtx = pieceCanvas.getContext('2d'); pieceCtx.drawImage(mainCanvas, c * pieceWidth, r * pieceHeight, pieceWidth, pieceHeight, 0, 0, pieceWidth, pieceHeight); zip.file(`${originalName}_r${r+1}_c${c+1}.png`, pieceCanvas.toDataURL('image/png').replace(/^data:image\/(png|jpg|jpeg|webp);base64,/, ""), { base64: true }); } } resolve(); 
+                const mainCanvas = document.createElement('canvas'); mainCanvas.width = img.width; mainCanvas.height = img.height; 
+                const mainCtx = mainCanvas.getContext('2d'); mainCtx.drawImage(img, 0, 0);
+                
+                // 仅去水印模式执行擦除
+                if (mode === 'watermark') { 
+                    let finalX = wmConfig.x, finalY = wmConfig.y;
+                    if (wmConfig.preset === 'bottom-right') { finalX = img.width - wmConfig.w; finalY = img.height - wmConfig.h; }
+                    else if (wmConfig.preset === 'bottom-left') { finalX = 0; finalY = img.height - wmConfig.h; }
+                    else if (wmConfig.preset === 'top-right') { finalX = img.width - wmConfig.w; finalY = 0; }
+                    else if (wmConfig.preset === 'top-left') { finalX = 0; finalY = 0; }
+                    
+                    if (wmConfig.type === 'color') {
+                        mainCtx.fillStyle = wmConfig.color; mainCtx.fillRect(finalX, finalY, wmConfig.w, wmConfig.h);
+                    } else {
+                        const mCanvas = document.createElement('canvas'); const mCtx = mCanvas.getContext('2d');
+                        mCanvas.width = Math.max(1, Math.floor(wmConfig.w / 15)); mCanvas.height = Math.max(1, Math.floor(wmConfig.h / 15));
+                        mCtx.drawImage(mainCanvas, finalX, finalY, wmConfig.w, wmConfig.h, 0, 0, mCanvas.width, mCanvas.height);
+                        mainCtx.imageSmoothingEnabled = false; 
+                        mainCtx.drawImage(mCanvas, 0, 0, mCanvas.width, mCanvas.height, finalX, finalY, wmConfig.w, wmConfig.h);
+                        mainCtx.imageSmoothingEnabled = true; 
+                    }
+                }
+                
+                const originalName = files[i].name.substring(0, files[i].name.lastIndexOf('.')) || files[i].name;
+                
+                // 仅拆分模式执行裁切保存
+                if (mode === 'split') {
+                    const pieceWidth = img.width / cols, pieceHeight = img.height / rows;
+                    for (let r = 0; r < rows; r++) { 
+                        for (let c = 0; c < cols; c++) { 
+                            const pieceCanvas = document.createElement('canvas'); pieceCanvas.width = pieceWidth; pieceCanvas.height = pieceHeight; 
+                            const pieceCtx = pieceCanvas.getContext('2d'); 
+                            pieceCtx.drawImage(mainCanvas, c * pieceWidth, r * pieceHeight, pieceWidth, pieceHeight, 0, 0, pieceWidth, pieceHeight); 
+                            zip.file(`${originalName}_r${r+1}_c${c+1}.png`, pieceCanvas.toDataURL('image/png').replace(/^data:image\/(png|jpg|jpeg|webp);base64,/, ""), { base64: true }); 
+                        } 
+                    } 
+                } else {
+                    // 去水印模式直接保存处理后的原图
+                    zip.file(`${originalName}_clean.png`, mainCanvas.toDataURL('image/png').replace(/^data:image\/(png|jpg|jpeg|webp);base64,/, ""), { base64: true });
+                }
+                resolve(); 
             }; img.onerror = () => resolve(); 
         });
     }
-    zip.generateAsync({ type: 'blob' }).then(function(content) { const link = document.createElement('a'); link.href = URL.createObjectURL(content); link.download = 'processed_images.zip'; link.click(); statusDiv.innerText = '处理成功'; processBtn.disabled = false; addAuditLog('使用了多宫格图片拆分工具');});
+    zip.generateAsync({ type: 'blob' }).then(function(content) { 
+        const link = document.createElement('a'); link.href = URL.createObjectURL(content); 
+        link.download = mode === 'split' ? `AI拆分打包_${Date.now()}.zip` : `AI去水印打包_${Date.now()}.zip`; link.click(); 
+        statusDiv.innerText = '✅ 处理与打包成功！'; 
+        addAuditLog(mode === 'split' ? '使用了多宫格独立拆分工具' : '使用了独立去水印工具');
+    });
 }
 
 function toggleImgGenSettings() { const panel = document.getElementById('imgGenSettingsPanel'); panel.style.display = panel.style.display === 'none' ? 'block' : 'none'; }
@@ -1501,7 +1630,7 @@ function renderSidebar() {
     const list = document.getElementById('chatList'); list.innerHTML = '';
     let display = currentTab === 'fav' ? chats.filter(c => c.isFavorite && !c.isStoryboard && !c.isImageGen) : chats.filter(c => !c.isStoryboard && !c.isImageGen); 
     
-    document.getElementById('storyboardBtn').classList.toggle('active', currentChatId === HUB_ID || chats.find(c=>c.id===currentChatId)?.isStoryboard);
+    document.getElementById('storyboardBtn').classList.toggle('active', currentChatId === HUB_ID || (chats.find(c=>c.id===currentChatId)?.isStoryboard === true));
     document.getElementById('imageGenBtn').classList.toggle('active', currentChatId === IMAGE_GEN_ID);
     document.getElementById('teamAssetBtn').classList.toggle('active', currentChatId === TEAM_ASSET_ID);
     document.getElementById('personalAssetBtn').classList.toggle('active', currentChatId === PERSONAL_ASSET_ID);
