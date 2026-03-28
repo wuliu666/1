@@ -288,6 +288,10 @@ def save_keys(data):
 # 已优化：删除了底部重复冗余的鉴权代码，合二为一，极大降低性能消耗
 @app.before_request
 def check_auth_global():
+    # 💡 核心修复：放行浏览器的 OPTIONS 跨域探路请求，防止前端报跨域拦截错误
+    if request.method == 'OPTIONS':
+        return None
+        
     if request.path in ['/verify', '/api/heartbeat'] or request.path.startswith('/static/'):
         return None
     
@@ -304,7 +308,9 @@ def check_auth_global():
         keys = load_keys()
         
         # 安全修复：引入 HMAC 对比，防止黑客通过对比耗时计算(Timing Attack)爆破超级密码
-        is_master = hmac.compare_digest(
+        # 💡 修复了因复制粘贴导致的代码截断语法错误
+        is_master = hmac.compare_digest(str(user_key), MASTER_KEY)
+        
         if not is_master and user_key not in keys:
             return jsonify({"error": "非法请求：无效的密钥", "code": "AUTH_FAILED"}), 401
         if not is_master and keys.get(user_key, {}).get("is_deleted", False):
@@ -1045,7 +1051,8 @@ def chat():
 @app.route('/admin/list', methods=['POST'])
 def list_keys():
     if not hmac.compare_digest(str(request.json.get('admin_key', '') or ''), MASTER_KEY): return jsonify({"error": "无权"}), 403
-    return jsonify({"keys": loas(
+    return jsonify({"keys": load_keys()})
+
 @app.route('/admin/create', methods=['POST'])
 def create_key():
     data = request.json
@@ -1096,11 +1103,13 @@ def log_action():
 @app.route('/admin/get_logs', methods=['POST'])
 def get_logs():
     if not hmac.compare_digest(str(request.json.get('admin_key', '') or ''), MASTER_KEY): return jsonify({"error": "无权"}), 403
-    conn c
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
     c.execute("SELECT user_key, action, datetime(created_at, 'localtime') as time FROM audit_logs ORDER BY id DESC LIMIT 1500")
     # 🛡️ 修复：拦截数据库中潜在的 NULL 脏数据，在序列化成 JSON 之前全部强制转为安全字符串
     rows = [{"user": str(r[0] or 'System'), "action": str(r[1] or 'Unknown'), "time": str(r[2] or '')} for r in c.fetchall()]
-    conn.close()e
+    conn.close()
+    return jsonify({"success": True, "logs": rows})
 
 @app.route('/admin/clear_logs', methods=['POST'])
 def clear_logs():
