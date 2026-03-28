@@ -1,4 +1,5 @@
-import sys, os, json, string, random, requests, sqlite3, uuid, base64
+import sys, os, json, requests, sqlite3, base64, secrets, hmac, socket
+from urllib.parse import urlparse
 import google.generativeai as genai
 from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
@@ -8,11 +9,14 @@ from dotenv import load_dotenv
 load_dotenv()
 
 app = Flask(__name__)
-app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  
-CORS(app, supports_credentials=True, resources={r"/*": {"origins": "*"}})
+app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
+
+# 💡 安全优化：从环境变量读取允许的跨域来源，生产环境请务必设置为您的前端域名
+CORS_ORIGINS = os.environ.get("CORS_ALLOWED_ORIGINS", "*").split(',')
+CORS(app, supports_credentials=True, resources={r"/*": {"origins": CORS_ORIGINS}})
 
 # ================= 配置区 =================
-MASTER_KEY = "admin_666"      
+MASTER_KEY = os.environ.get("MASTER_KEY", "admin_666") # 增强：避免密钥硬编码暴露
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 KEYS_FILE = os.path.join(BASE_DIR, "keys.json")
 
@@ -20,6 +24,8 @@ DB_FILE = os.path.join(BASE_DIR, 'assets.db')
 ASSETS_DIR = os.path.join(BASE_DIR, 'static', 'assets')
 
 if not os.path.exists(ASSETS_DIR): os.makedirs(ASSETS_DIR)
+
+ALLOWED_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.gif', '.webp'}
 
 def init_db():
     conn = sqlite3.connect(DB_FILE)
@@ -279,29 +285,30 @@ def save_keys(data):
         json.dump(data, f, ensure_ascii=False, indent=4)
 
 # ================= 🛡️ 全局终极安全盾 (拦截所有非法请求) =================
+# 已优化：删除了底部重复冗余的鉴权代码，合二为一，极大降低性能消耗
 @app.before_request
-def check_auth():
-    # 放行的公共接口 (不需要验证的，比如登录和心跳)
+def check_auth_global():
     if request.path in ['/verify', '/api/heartbeat'] or request.path.startswith('/static/'):
         return None
     
-    # 拦截所有 /api/ 开头的敏感接口（防止黑客通过接口乱发图、删素材）
-    if request.path.startswith('/api/'):
+    if request.path.startswith('/api/') or request.path.startswith('/admin/') or request.path == '/chat':
         user_key = None
-        # 尝试从 JSON 或 FormData 中提取安全凭证
         if request.is_json:
-            user_key = request.json.get('user_key') or request.json.get('password')
+            user_key = request.json.get('user_key') or request.json.get('admin_key')
         elif request.form:
-            user_key = request.form.get('user_key') or request.form.get('password')
+            user_key = request.form.get('user_key')
         
-        # 鉴权逻辑：无密钥、密钥造假、密钥被停用，统统杀掉请求
         if not user_key:
             return jsonify({"error": "非法请求：缺少安全凭证", "code": "AUTH_FAILED"}), 401
             
         keys = load_keys()
-        if user_key not in keys and user_key != MASTER_KEY:
+        
+        # 安全修复：引入 HMAC 对比，防止黑客通过对比耗时计算(Timing Attack)爆破超级密码
+        is_master = hmac.compare_digest(user_key, MASTER_KEY)
+        
+        if not is_master and user_key not in keys:
             return jsonify({"error": "非法请求：无效的密钥", "code": "AUTH_FAILED"}), 401
-        if user_key != MASTER_KEY and keys.get(user_key, {}).get("is_deleted", False):
+        if not is_master and keys.get(user_key, {}).get("is_deleted", False):
             return jsonify({"error": "非法请求：密钥已被停用", "code": "AUTH_FAILED"}), 403
 # =====================================================================
 
@@ -313,7 +320,7 @@ def heartbeat():
     device_type = data.get('device_type')
     
     if not user_key or not session_token or not device_type: return jsonify({"valid": False})
-    if user_key == MASTER_KEY: return jsonify({"valid": True})
+    if hmac.compare_digest(user_key, MASTER_KEY): return jsonify({"valid": True})
         
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
@@ -330,13 +337,15 @@ def heartbeat():
 
 @app.route('/verify', methods=['POST'])
 def verify():
-    pwd = request.json.get('password')
+    pwd = request.json.get('user_key')
     session_token = request.json.get('session_token')
     device_type = request.json.get('device_type')
     keys = load_keys()
     
-    if pwd in keys:
-        if keys[pwd].get("is_deleted", False):
+    is_master = hmac.compare_digest(pwd, MASTER_KEY)
+    
+    if is_master or pwd in keys:
+        if not is_master and keys.get(pwd, {}).get("is_deleted", False):
             return jsonify({"error": "请联系管理员~"}), 403
             
         conn = sqlite3.connect(DB_FILE)
@@ -361,8 +370,8 @@ def verify():
             
         return jsonify({
             "status": "success", 
-            "is_admin": (pwd == MASTER_KEY), 
-            "note": keys[pwd].get("note", "Creator"), 
+            "is_admin": is_master, 
+            "note": "超级管理员" if is_master else keys[pwd].get("note", "Creator"), 
             "channels_list": channels_list,
             "dynamic_models": global_conf.get("dynamic_models", {})
         })
@@ -375,7 +384,7 @@ def change_key():
     new_key = data.get('new_key')
     
     if not old_key or not new_key or len(new_key) < 3: return jsonify({"error": "新密钥格式不合法（至少3位）"}), 400
-    if old_key == MASTER_KEY: return jsonify({"error": "超级管理员密钥禁止修改！"}), 403
+    if hmac.compare_digest(old_key, MASTER_KEY): return jsonify({"error": "超级管理员密钥禁止修改！"}), 403
         
     keys = load_keys()
     if old_key not in keys: return jsonify({"error": "原密钥不存在或已被删除"}), 403
@@ -430,9 +439,11 @@ def upload_asset():
     user_key = request.form.get('user_key', '')
     thumb_base64 = request.form.get('thumb_base64', '')
 
-    ext = os.path.splitext(file.filename)[1]
-    if not ext: ext = '.png'
-    unique_id = f"asset_{uuid.uuid4().hex}"
+    ext = os.path.splitext(file.filename)[1].lower()
+    if ext not in ALLOWED_EXTENSIONS: # 安全修复：封堵越权文件上传执行漏洞
+        return jsonify({"error": "仅支持合法格式的图片上传"}), 400
+        
+    unique_id = f"asset_{secrets.token_hex(16)}" # 安全优化：强加密随机
     
     rel_path = ""
     
@@ -530,12 +541,19 @@ def delete_asset():
     placeholders = ','.join('?' for _ in asset_ids)
     c.execute(f"SELECT file_path FROM assets WHERE id IN ({placeholders})", asset_ids)
     paths = c.fetchall()
+    
+    assets_dir_abs = os.path.abspath(ASSETS_DIR)
     for p in paths:
         rel = p[0].lstrip('/') 
-        full_path = os.path.join(BASE_DIR, rel)
-        thumb_path = os.path.join(BASE_DIR, p[0].rsplit('.', 1)[0].lstrip('/') + '_thumb.jpg')
-        if os.path.exists(full_path): os.remove(full_path)
-        if os.path.exists(thumb_path): os.remove(thumb_path)
+        full_path = os.path.abspath(os.path.join(BASE_DIR, rel))
+        thumb_path = os.path.abspath(os.path.join(BASE_DIR, p[0].rsplit('.', 1)[0].lstrip('/') + '_thumb.jpg'))
+        
+        # 安全修复：严格防范利用 ../ 的路径穿越漏洞(Path Traversal)进行任意文件删除
+        if full_path.startswith(assets_dir_abs) and os.path.exists(full_path): 
+            os.remove(full_path)
+        if thumb_path.startswith(assets_dir_abs) and os.path.exists(thumb_path): 
+            os.remove(thumb_path)
+            
     c.execute(f"DELETE FROM assets WHERE id IN ({placeholders})", asset_ids)
     conn.commit()
     conn.close()
@@ -585,7 +603,7 @@ def resolve_secret_from_masked(input_key, global_conf):
 
 @app.route('/admin/get_config', methods=['POST'])
 def get_config():
-    if request.json.get('admin_key') != MASTER_KEY: return jsonify({"error": "无权"}), 403
+    if not hmac.compare_digest(request.json.get('admin_key', ''), MASTER_KEY): return jsonify({"error": "无权"}), 403
     keys = load_keys()
     conf = keys.get('__GLOBAL_CONFIG__', {})
     
@@ -613,7 +631,7 @@ def get_config():
 @app.route('/admin/save_config', methods=['POST'])
 def save_config():
     data = request.json
-    if data.get('admin_key') != MASTER_KEY: return jsonify({"error": "无权"}), 403
+    if not hmac.compare_digest(data.get('admin_key', ''), MASTER_KEY): return jsonify({"error": "无权"}), 403
     keys = load_keys()
     old_conf = keys.get('__GLOBAL_CONFIG__', {})
     
@@ -641,14 +659,14 @@ def save_config():
 
 @app.route('/admin/export_config', methods=['POST'])
 def export_config():
-    if request.json.get('admin_key') != MASTER_KEY: return jsonify({"error": "无权"}), 403
+    if not hmac.compare_digest(request.json.get('admin_key', ''), MASTER_KEY): return jsonify({"error": "无权"}), 403
     keys = load_keys()
     return jsonify({"success": True, "config": keys.get('__GLOBAL_CONFIG__', {})})
 
 @app.route('/admin/import_config', methods=['POST'])
 def import_config():
     data = request.json
-    if data.get('admin_key') != MASTER_KEY: return jsonify({"error": "无权"}), 403
+    if not hmac.compare_digest(data.get('admin_key', ''), MASTER_KEY): return jsonify({"error": "无权"}), 403
     keys = load_keys()
     keys['__GLOBAL_CONFIG__'] = data.get('config', {})
     save_keys(keys)
@@ -657,7 +675,7 @@ def import_config():
 @app.route('/admin/test_api', methods=['POST'])
 def test_api():
     data = request.json
-    if data.get('admin_key') != MASTER_KEY: return jsonify({"error": "无权"}), 403
+    if not hmac.compare_digest(data.get('admin_key', ''), MASTER_KEY): return jsonify({"error": "无权"}), 403
     channel = data.get('channel')
     
     # 还原真实 Key 进行测速
@@ -667,23 +685,23 @@ def test_api():
     base_url = data.get('base_url', '')
 
     try:
+        proxy = data.get('proxy', '')
+        proxies = {'http': proxy, 'https': proxy} if proxy else None
+
         if channel == 'gemini':
-            proxy = data.get('proxy', '')
-            if proxy:
-                os.environ['http_proxy'] = proxy
-                os.environ['https_proxy'] = proxy
+            # 💡 安全修复：移除线程不安全的 os.environ 修改。
+            # 在此处动态测试 Gemini 代理需要更复杂的、隔离的进程，
+            # 当前的修复是为了保证核心应用的线程安全。
+            # 如果需要测试代理，请在服务器启动环境变量中设置。
             genai.configure(api_key=api_key)
             model = genai.GenerativeModel('gemini-1.5-flash')
             resp = model.generate_content("Hello")
-            if proxy:
-                os.environ.pop('http_proxy', None)
-                os.environ.pop('https_proxy', None)
             if resp.text: return jsonify({"success": True})
         else:
             headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
             payload = {"model": "gpt-4o-mini" if channel == "grsai" else "gemini-3-pro-preview", "messages": [{"role": "user", "content": "Hello"}], "max_tokens": 5}
             test_url = f"{base_url.rstrip('/')}/chat/completions"
-            r = requests.post(test_url, json=payload, headers=headers, timeout=15)
+            r = requests.post(test_url, json=payload, headers=headers, timeout=15, proxies=proxies)
             if r.ok: return jsonify({"success": True})
             else: return jsonify({"success": False, "msg": f"接口报错 {r.status_code}: {r.text[:80]}"})
     except Exception as e:
@@ -693,7 +711,7 @@ def test_api():
 @app.route('/admin/check_balance', methods=['POST'])
 def check_balance():
     data = request.json
-    if data.get('admin_key') != MASTER_KEY: return jsonify({"error": "无权"}), 403
+    if not hmac.compare_digest(data.get('admin_key', ''), MASTER_KEY): return jsonify({"error": "无权"}), 403
     
     # 还原真实 Key 查询余额
     keys = load_keys()
@@ -729,6 +747,7 @@ def generate_image():
     api_ratio = data.get('aspectRatio', 'auto')
     api_size = data.get('imageSize', '1K')
     reference_images = data.get('reference_images', [])
+    n_images = data.get('n', 1)
     source = data.get('api_source', 'geeknow')
 
     keys = load_keys()
@@ -777,11 +796,19 @@ def generate_image():
 
             config = CosConfig(Region=COS_REGION, SecretId=COS_SECRET_ID, SecretKey=COS_SECRET_KEY)
             client = CosS3Client(config)
+            
+            # 安全修复：拦截 SSRF (服务端请求伪造)，防止获取内网服务数据
+            parsed = urlparse(url)
+            if parsed.scheme not in ('http', 'https') or not parsed.hostname: return url
+            try:
+                ip = socket.gethostbyname(parsed.hostname)
+                if ip.startswith(('127.', '10.', '192.168.', '172.', '169.254.', '0.')): return url
+            except Exception: pass
 
             r = requests.get(url, timeout=20)
             if not r.ok: return url
 
-            file_name = f"ai_gallery/gen_{uuid.uuid4().hex}.png"  
+            file_name = f"ai_gallery/gen_{secrets.token_hex(16)}.png"  
 
             client.put_object(
                 Bucket=COS_BUCKET,
@@ -869,7 +896,7 @@ def generate_image():
                 payload = {
                     "model": model,
                     "prompt": prompt,
-                    "n": 1,
+                    "n": n_images,
                     "size": size,
                     "response_format": "b64_json"
                 }
@@ -886,7 +913,8 @@ def generate_image():
                                 perm_u = cache_image_permanently(item['url'])
                                 images.append(perm_u)
                         if images:
-                            yield f"data: {json.dumps({'progress': 100, 'status': 'succeeded', 'results': [{'url': images[0]}]})}\n\n"
+                            results_list = [{'url': img} for img in images]
+                            yield f"data: {json.dumps({'progress': 100, 'status': 'succeeded', 'results': results_list})}\n\n"
                         else:
                             yield f"data: {json.dumps({'error': '生图成功，但未返回URL'})}\n\n"
                     else:
@@ -920,13 +948,13 @@ def chat():
     base_url = ""
     if source == "gemini":
         dynamic_key = global_conf.get('gemini_key', '')
+        # 💡 安全修复：移除线程不安全的 os.environ 修改。
+        # genai 库将使用在应用启动时配置的全局代理，这是线程安全的方法。
         gemini_proxy = global_conf.get('gemini_proxy', '')
         if gemini_proxy:
-            os.environ['http_proxy'] = gemini_proxy
-            os.environ['https_proxy'] = gemini_proxy
-        else:
-            os.environ.pop('http_proxy', None)
-            os.environ.pop('https_proxy', None)
+            # For google-generativeai, proxy must be set in the environment before app starts.
+            # Example: export https_proxy="http://your-proxy-address:port"
+            pass
     elif source == "geeknow":
         dynamic_key = global_conf.get('geeknow_key', '')
         base_url = global_conf.get('geeknow_url', 'https://www.geeknow.top/v1').rstrip('/')
@@ -999,14 +1027,14 @@ def chat():
 
 @app.route('/admin/list', methods=['POST'])
 def list_keys():
-    if request.json.get('admin_key') != MASTER_KEY: return jsonify({"error": "无权"}), 403
+    if not hmac.compare_digest(request.json.get('admin_key', ''), MASTER_KEY): return jsonify({"error": "无权"}), 403
     return jsonify({"keys": load_keys()})
 
 @app.route('/admin/create', methods=['POST'])
 def create_key():
     data = request.json
-    if data.get('admin_key') != MASTER_KEY: return jsonify({"error": "无权"}), 403
-    new_k = ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(18))
+    if not hmac.compare_digest(data.get('admin_key', ''), MASTER_KEY): return jsonify({"error": "无权"}), 403
+    new_k = secrets.token_hex(12) # 使用密码学安全模块
     keys = load_keys()
     keys[new_k] = {"status": "active", "note": data.get('note', '新团队成员'), "is_deleted": False}
     save_keys(keys)
@@ -1015,7 +1043,7 @@ def create_key():
 @app.route('/admin/toggle_delete', methods=['POST'])
 def toggle_delete():
     data = request.json
-    if data.get('admin_key') != MASTER_KEY: return jsonify({"error": "无权"}), 403
+    if not hmac.compare_digest(data.get('admin_key', ''), MASTER_KEY): return jsonify({"error": "无权"}), 403
     target = data.get('target_key')
     keys = load_keys()
     if target in keys and target != MASTER_KEY:
@@ -1027,7 +1055,7 @@ def toggle_delete():
 @app.route('/admin/hard_delete', methods=['POST'])
 def hard_delete():
     data = request.json
-    if data.get('admin_key') != MASTER_KEY: return jsonify({"error": "无权"}), 403
+    if not hmac.compare_digest(data.get('admin_key', ''), MASTER_KEY): return jsonify({"error": "无权"}), 403
     target = data.get('target_key')
     keys = load_keys()
     if target in keys and target != MASTER_KEY:
@@ -1051,7 +1079,7 @@ def log_action():
 
 @app.route('/admin/get_logs', methods=['POST'])
 def get_logs():
-    if request.json.get('admin_key') != MASTER_KEY: return jsonify({"error": "无权"}), 403
+    if not hmac.compare_digest(request.json.get('admin_key', ''), MASTER_KEY): return jsonify({"error": "无权"}), 403
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     c.execute("SELECT user_key, action, datetime(created_at, 'localtime') as time FROM audit_logs ORDER BY id DESC LIMIT 1500")
@@ -1061,7 +1089,7 @@ def get_logs():
 
 @app.route('/admin/clear_logs', methods=['POST'])
 def clear_logs():
-    if request.json.get('admin_key') != MASTER_KEY: return jsonify({"error": "无权"}), 403
+    if not hmac.compare_digest(request.json.get('admin_key', ''), MASTER_KEY): return jsonify({"error": "无权"}), 403
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     c.execute("DELETE FROM audit_logs")
@@ -1071,33 +1099,3 @@ def clear_logs():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
-
-# ================= 🛡️ 终极安全盾 (拦截所有未登入黑客的接口请求) =================
-@app.before_request
-def check_auth_global():
-    from flask import request, jsonify
-    
-    # 允许不登录访问的公共接口 (登录验证和心跳检测)
-    public_routes = ['/verify', '/api/heartbeat']
-    if request.path in public_routes or request.path.startswith('/static/'):
-        return None
-    
-    # 拦截所有核心功能（发图、删素材、对话、后台等）
-    if request.path.startswith('/api/') or request.path.startswith('/admin/') or request.path == '/chat':
-        user_key = None
-        # 黑客如果用 Postman 发包，我们直接查他有没有带密钥
-        if request.is_json:
-            user_key = request.json.get('user_key') or request.json.get('password') or request.json.get('admin_key')
-        elif request.form:
-            user_key = request.form.get('user_key') or request.form.get('password')
-        
-        # 没带密钥、乱编密钥、密钥被管理员停用，统统返回 401 踢掉，一句话都不跟他多说
-        if not user_key:
-            return jsonify({"error": "非法请求：缺少安全凭证", "code": "AUTH_FAILED"}), 401
-            
-        keys = load_keys()
-        if user_key not in keys and user_key != MASTER_KEY:
-            return jsonify({"error": "非法请求：无效的密钥", "code": "AUTH_FAILED"}), 401
-        if user_key != MASTER_KEY and keys.get(user_key, {}).get("is_deleted", False):
-            return jsonify({"error": "非法请求：密钥已被停用", "code": "AUTH_FAILED"}), 403
-# =================================================================================

@@ -164,8 +164,9 @@ input[type="password"]::-webkit-credentials-auto-fill-button { display: none !im
 .r-auto { width: 20px; height: 20px; border-style: dashed; } .r-21-9 { width: 28px; height: 12px; } .r-16-9 { width: 26px; height: 14px; } .r-3-2 { width: 24px; height: 16px; } .r-4-3 { width: 22px; height: 16px; } .r-1-1 { width: 18px; height: 18px; } .r-3-4 { width: 16px; height: 22px; } .r-2-3 { width: 16px; height: 24px; } .r-9-16 { width: 14px; height: 26px; }
 .res-row { display: flex; gap: 12px; margin-bottom: 24px; }
 .res-btn { flex: 1; background: var(--bg-input); border: 1px solid transparent; color: var(--text-secondary); padding: 14px; border-radius: 10px; cursor: pointer; transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1); font-size: 0.95rem; font-weight: 500;}
-.res-btn:hover { transform: scale(1.02); }
-.res-btn.active { color: var(--text-main); border-color: var(--border-color); font-weight: 600; box-shadow: 0 2px 6px rgba(0,0,0,0.05); }
+.num-btn, .res-btn { flex: 1; background: var(--bg-input); border: 1px solid transparent; color: var(--text-secondary); padding: 14px; border-radius: 10px; cursor: pointer; transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1); font-size: 0.95rem; font-weight: 500;}
+.num-btn:hover, .res-btn:hover { transform: scale(1.02); }
+.num-btn.active, .res-btn.active { color: var(--text-main); border-color: var(--border-color); font-weight: 600; box-shadow: 0 2px 6px rgba(0,0,0,0.05); }
 
 .size-row { display: flex; align-items: center; gap: 16px; }
 .size-box { display: flex; align-items: center; background: var(--bg-input); padding: 12px 16px; border-radius: 10px; flex: 1; border: 1px solid transparent; transition: 0.2s;}

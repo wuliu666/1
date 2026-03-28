@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com; object-src 'none'; base-uri 'none';">
     <title>核心创作终端</title>
     <link rel="icon" href="data:;base64,=">
     <style>
@@ -104,6 +105,13 @@
                 <button class="res-btn active" onclick="selectRes(this, '高清 2K')" title="生成 2K 级别的高清图像">高清 2K</button>
                 <button class="res-btn" onclick="selectRes(this, '超清 4K')" title="消耗更多额度，生成极致 4K 画质">超清 4K ✨</button>
             </div>
+            <div class="panel-label">生成数量 (部分模型支持)</div>
+            <div class="res-row">
+                <button class="num-btn active" onclick="selectNum(this, 1)">1 张</button>
+                <button class="num-btn" onclick="selectNum(this, 2)">2 张</button>
+                <button class="num-btn" onclick="selectNum(this, 3)">3 张</button>
+                <button class="num-btn" onclick="selectNum(this, 4)">4 张</button>
+            </div>
             <div class="panel-label">自定义像素尺寸</div>
             <div class="size-row">
                 <div class="size-box"><span>W</span><input type="number" id="imgWidth" value="2560" title="图像宽度 (像素)"></div>
@@ -138,6 +146,9 @@
                 <button class="send-btn desktop-send" style="width: 36px; height: 36px; font-size: 1.1rem; margin-bottom: 2px;" onclick="sendImageGenMessage()">↑</button>
                 <span class="mobile-send-btn" onclick="sendImageGenMessage()" style="font-size: 1.4rem; margin-left: 8px; margin-bottom: 4px; color: var(--bg-user-msg); cursor: pointer;">⬆️</span>
             </div>
+        </div>
+        <div style="text-align: center; font-size: 0.8rem; color: var(--text-secondary); margin-top: 12px;">
+            💡 温馨提示：为节约资源，AI 生成的图片链接仅保留 24 小时，请及时下载或保存至素材库。
         </div>
     </div>
 
