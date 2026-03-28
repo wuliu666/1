@@ -304,8 +304,7 @@ def check_auth_global():
         keys = load_keys()
         
         # 安全修复：引入 HMAC 对比，防止黑客通过对比耗时计算(Timing Attack)爆破超级密码
-        is_master = hmac.compare_digest(user_key, MASTER_KEY)
-        
+        is_master = hmac.compare_digest(
         if not is_master and user_key not in keys:
             return jsonify({"error": "非法请求：无效的密钥", "code": "AUTH_FAILED"}), 401
         if not is_master and keys.get(user_key, {}).get("is_deleted", False):
@@ -491,20 +490,10 @@ def upload_asset():
         except Exception as e:
             print(f"团队素材上传 COS 失败，降级使用本地存储: {e}")
     
-    # 兜底安全机制：如果没有配置 COS 或网络波动导致上传失败，依然保存在本地服务器防止数据丢失
+    # 🚀 强制纯云端存储引擎：彻底抛弃本地存储兜底，0 占用服务器硬盘空间！
+    # 只要没走通腾讯云 COS，直接拦截并报错
     if not rel_path:
-        filename = f"{unique_id}{ext}"
-        file_path = os.path.join(ASSETS_DIR, filename)
-        file.seek(0) # 重置文件指针
-        file.save(file_path)
-        rel_path = f"/static/assets/{filename}"
-        
-        if thumb_base64 and "," in thumb_base64:
-            try:
-                header, encoded = thumb_base64.split(",", 1)
-                thumb_data = base64.b64decode(encoded)
-                with open(os.path.join(ASSETS_DIR, f"{unique_id}_thumb.jpg"), "wb") as f: f.write(thumb_data)
-            except: pass
+        return jsonify({"error": "上传失败：系统已开启纯云端存储模式，请联系管理员在 .env 中正确配置腾讯云 COS"}), 500
 
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
@@ -535,24 +524,49 @@ def get_assets():
 @app.route('/api/delete_asset', methods=['POST'])
 def delete_asset():
     asset_ids = request.json.get('ids', [])
-    if not asset_ids: return jsonify({"success": True})
+    
+    # 🛡️ 安全加固：强制校验 ids 必须为列表，防止脏数据引发服务端类型异常
+    if not isinstance(asset_ids, list) or not asset_ids: 
+        return jsonify({"success": True})
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     placeholders = ','.join('?' for _ in asset_ids)
     c.execute(f"SELECT file_path FROM assets WHERE id IN ({placeholders})", asset_ids)
-    paths = c.fetchall()
+    paths_to_delete = [row[0] for row in c.fetchall()]
     
-    assets_dir_abs = os.path.abspath(ASSETS_DIR)
-    for p in paths:
-        rel = p[0].lstrip('/') 
-        full_path = os.path.abspath(os.path.join(BASE_DIR, rel))
-        thumb_path = os.path.abspath(os.path.join(BASE_DIR, p[0].rsplit('.', 1)[0].lstrip('/') + '_thumb.jpg'))
-        
-        # 安全修复：严格防范利用 ../ 的路径穿越漏洞(Path Traversal)进行任意文件删除
-        if full_path.startswith(assets_dir_abs) and os.path.exists(full_path): 
-            os.remove(full_path)
-        if thumb_path.startswith(assets_dir_abs) and os.path.exists(thumb_path): 
-            os.remove(thumb_path)
+    # 检查是否配置了COS
+    COS_SECRET_ID = os.environ.get('COS_SECRET_ID', '')
+    if COS_SECRET_ID and COS_SECRET_ID != '你的_SecretId':
+        try:
+            from qcloud_cos import CosConfig, CosS3Client
+            COS_SECRET_KEY = os.environ.get('COS_SECRET_KEY', '')
+            COS_REGION = os.environ.get('COS_REGION', '')
+            COS_BUCKET = os.environ.get('COS_BUCKET', '')
+            config = CosConfig(Region=COS_REGION, SecretId=COS_SECRET_ID, SecretKey=COS_SECRET_KEY)
+            client = CosS3Client(config)
+            
+            cos_keys_to_delete = []
+            for path in paths_to_delete:
+                if f"https://{COS_BUCKET}.cos.{COS_REGION}.myqcloud.com/" in path:
+                    # 从URL中提取COS对象键
+                    cos_key = path.split(f".myqcloud.com/")[-1]
+                    cos_keys_to_delete.append({'Key': cos_key})
+                    # 尝试删除对应的缩略图
+                    thumb_key = os.path.splitext(cos_key)[0] + '_thumb.jpg'
+                    cos_keys_to_delete.append({'Key': thumb_key})
+            
+            if cos_keys_to_delete:
+                # 批量删除COS对象
+                client.delete_objects(Bucket=COS_BUCKET, Delete={'Object': cos_keys_to_delete})
+        except Exception as e:
+            print(f"删除COS对象时发生错误: {e}")
+            # 即使COS删除失败，也继续删除数据库记录
+    else: # 如果没有配置COS，则执行本地文件删除逻辑
+        assets_dir_abs = os.path.abspath(ASSETS_DIR)
+        for path in paths_to_delete:
+            full_path = os.path.abspath(os.path.join(BASE_DIR, path.lstrip('/')))
+            if full_path.startswith(assets_dir_abs) and os.path.exists(full_path):
+                os.remove(full_path)
             
     c.execute(f"DELETE FROM assets WHERE id IN ({placeholders})", asset_ids)
     conn.commit()
@@ -574,7 +588,10 @@ def bulk_update_category():
     data = request.json
     asset_ids = data.get('ids', [])
     new_type = data.get('type')
-    if not asset_ids or not new_type: return jsonify({"success": False})
+    
+    # 🛡️ 安全加固：严格校验列表类型
+    if not isinstance(asset_ids, list) or not asset_ids or not new_type: 
+        return jsonify({"success": False})
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     placeholders = ','.join('?' for _ in asset_ids)
@@ -1027,9 +1044,8 @@ def chat():
 
 @app.route('/admin/list', methods=['POST'])
 def list_keys():
-    if not hmac.compare_digest(request.json.get('admin_key', ''), MASTER_KEY): return jsonify({"error": "无权"}), 403
-    return jsonify({"keys": load_keys()})
-
+    if not hmac.compare_digest(str(request.json.get('admin_key', '') or ''), MASTER_KEY): return jsonify({"error": "无权"}), 403
+    return jsonify({"keys": loas(
 @app.route('/admin/create', methods=['POST'])
 def create_key():
     data = request.json
@@ -1079,13 +1095,12 @@ def log_action():
 
 @app.route('/admin/get_logs', methods=['POST'])
 def get_logs():
-    if not hmac.compare_digest(request.json.get('admin_key', ''), MASTER_KEY): return jsonify({"error": "无权"}), 403
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
+    if not hmac.compare_digest(str(request.json.get('admin_key', '') or ''), MASTER_KEY): return jsonify({"error": "无权"}), 403
+    conn c
     c.execute("SELECT user_key, action, datetime(created_at, 'localtime') as time FROM audit_logs ORDER BY id DESC LIMIT 1500")
-    rows = [{"user": r[0], "action": r[1], "time": r[2]} for r in c.fetchall()]
-    conn.close()
-    return jsonify({"success": True, "logs": rows})
+    # 🛡️ 修复：拦截数据库中潜在的 NULL 脏数据，在序列化成 JSON 之前全部强制转为安全字符串
+    rows = [{"user": str(r[0] or 'System'), "action": str(r[1] or 'Unknown'), "time": str(r[2] or '')} for r in c.fetchall()]
+    conn.close()e
 
 @app.route('/admin/clear_logs', methods=['POST'])
 def clear_logs():

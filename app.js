@@ -29,147 +29,6 @@ const localDB = {
     delete: async (ids) => new Promise(r => { const tx = localDBInstance.transaction('assets', 'readwrite'); const store = tx.objectStore('assets'); ids.forEach(id => store.delete(id)); tx.oncomplete = () => r(true); })
 };
 
-// 🔥 核心提速黑科技：将庞大的 Base64 实时转换为轻量级 Blob URL
-function base64ToBlobUrl(base64) {
-    if (!base64 || typeof base64 !== 'string' || !base64.startsWith('data:')) return base64;
-    try {
-        const parts = base64.split(',');
-        const mime = parts[0].match(/:(.*?);/)[1];
-        const bstr = atob(parts[1]);
-        let n = bstr.length;
-        const u8arr = new Uint8Array(n);
-        while(n--){ u8arr[n] = bstr.charCodeAt(n); }
-        return URL.createObjectURL(new Blob([u8arr], {type:mime}));
-    } catch(e) { return base64; }
-}
-
-// 🔥 替换原有的弱伪随机数生成
-function generateSecureToken() {
-    const array = new Uint32Array(2);
-    crypto.getRandomValues(array);
-    return array[0].toString(36) + array[1].toString(36) + Date.now().toString(36);
-}
-
-// 2. 劫持底层的 Fetch 网络请求 (偷天换日)
-const originalFetch = window.fetch;
-window.fetch = async function(...args) {
-    const url = args[0]; const options = args[1] || {};
-
-    if (typeof url === 'string' && url.includes('/api/get_assets') && options.body) {
-        try {
-            const bodyObj = JSON.parse(options.body);
-            if (bodyObj.library_mode === 'personal') {
-                await initLocalDB(); const localAssets = await localDB.getAll();
-                // 🚀 性能狂飙：渲染前秒转 Blob URL
-                const fastAssets = localAssets.map(a => ({
-                    ...a,
-                    image: base64ToBlobUrl(a.image),
-                    thumb: base64ToBlobUrl(a.thumb)
-                }));
-                return new Response(JSON.stringify(fastAssets), { status: 200, headers: { 'Content-Type': 'application/json' } });
-            }
-        } catch(e) {}
-    }
-
-    if (typeof url === 'string' && url.includes('/api/upload_asset') && options.body instanceof FormData) {
-        if (options.body.get('library_mode') === 'personal') {
-            await initLocalDB();
-            const file = options.body.get('file');
-            const unique_id = 'local_asset_' + generateSecureToken();
-            return new Promise((resolve) => {
-                const reader = new FileReader();
-                reader.onloadend = async () => {
-                    const base64Data = reader.result;
-                    const assetObj = {
-                        id: unique_id, title: options.body.get('title') || '未命名', type: options.body.get('type') || 'character',
-                        prompt: options.body.get('prompt') || '', image: base64Data, thumb: options.body.get('thumb_base64') || base64Data,
-                        library_mode: 'personal', created_at: Date.now()
-                    };
-                    await localDB.save(assetObj);
-                    resolve(new Response(JSON.stringify({ success: true, asset: assetObj }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
-                };
-                if (file) reader.readAsDataURL(file);
-                else resolve(new Response(JSON.stringify({ error: "No file" }), { status: 400 }));
-            });
-        }
-    }
-
-    if (typeof url === 'string' && url.includes('/api/delete_asset') && options.body) {
-        try {
-            const bodyObj = JSON.parse(options.body);
-            if (bodyObj.ids && bodyObj.ids.length > 0 && bodyObj.ids[0].startsWith('local_asset_')) {
-                await initLocalDB(); await localDB.delete(bodyObj.ids);
-                return new Response(JSON.stringify({success:true}), { status: 200 });
-            }
-        } catch(e) {}
-    }
-
-    if (typeof url === 'string' && url.includes('/api/update_asset') && options.body) {
-         try {
-            const bodyObj = JSON.parse(options.body);
-            if(bodyObj.id && bodyObj.id.startsWith('local_asset_')) {
-                 return new Promise(r => {
-                    const tx = localDBInstance.transaction('assets', 'readwrite'); const store = tx.objectStore('assets');
-                    const getReq = store.get(bodyObj.id);
-                    getReq.onsuccess = () => {
-                        if(getReq.result) { let item = getReq.result; item.title = bodyObj.title; item.type = bodyObj.type; item.prompt = bodyObj.prompt; store.put(item); }
-                        r(new Response(JSON.stringify({success:true}), { status: 200 }));
-                    }
-                });
-            }
-         } catch(e) {}
-    }
-
-    if (typeof url === 'string' && url.includes('/api/bulk_update_category') && options.body) {
-         try {
-            const bodyObj = JSON.parse(options.body);
-            if(bodyObj.ids && bodyObj.ids.length > 0 && bodyObj.ids[0].startsWith('local_asset_')) {
-                 return new Promise(r => {
-                    const tx = localDBInstance.transaction('assets', 'readwrite'); const store = tx.objectStore('assets');
-                    bodyObj.ids.forEach(id => { const getReq = store.get(id); getReq.onsuccess = () => { if(getReq.result) { let item = getReq.result; item.type = bodyObj.type; store.put(item); } } });
-                    tx.oncomplete = () => r(new Response(JSON.stringify({success:true}), { status: 200 }));
-                });
-            }
-         } catch(e) {}
-    }
-
-    // === 🛡️ 终极安全系统：全局请求拦截与鉴权自动注入 ===
-    if (typeof url === 'string' && (url.includes('/api/') || url.includes('/admin/') || url.includes('/chat'))) {
-        if (options.method === 'POST') {
-            // 1. 如果是普通数据请求，强制塞入密钥
-            if (options.body && typeof options.body === 'string') {
-                try {
-                    let bodyObj = JSON.parse(options.body);
-                    if (typeof currentUserKey !== 'undefined' && currentUserKey && !bodyObj.user_key && !bodyObj.password && !bodyObj.admin_key) {
-                        bodyObj.user_key = currentUserKey;
-                        options.body = JSON.stringify(bodyObj);
-                    }
-                } catch(e) {}
-            } 
-            // 2. 如果是上传文件请求，强制附加密钥字段
-            else if (options.body instanceof FormData) {
-                if (typeof currentUserKey !== 'undefined' && currentUserKey && !options.body.has('user_key')) {
-                    options.body.append('user_key', currentUserKey);
-                }
-            }
-        }
-    }
-
-    // 放行真实的网络请求
-    const response = await originalFetch.apply(this, args);
-    
-    // 🚨 核心防御熔断：如果后端大发雷霆返回 401/403 (拦截到黑客或失效账号)，前端直接踢出！
-    if (response && (response.status === 401 || response.status === 403)) {
-        console.warn("🚨 触发高危预警：请求被后端安全盾拦截！");
-        if (typeof forceLogout === 'function') {
-            forceLogout("🚨 安全警告：系统检测到您的请求存在越权行为或凭证已失效，为保护数据安全，已强制熔断连接！");
-        }
-    }
-    
-    return response;
-};
-// ========================== 拦截引擎结束 =================================
-
 // ⚡ 注意：必须把这里的 IP 替换为您真实的公网 IP！
 const API_BASE_URL = "http://127.0.0.1:5000"; 
 const HUB_ID = 'STORYBOARD_HUB'; 
@@ -644,7 +503,8 @@ async function refreshKeyList() {
         if(res.ok) { 
             const d = await res.json(); 
             for(let k in d.keys) { 
-                if(k === ak) continue; 
+                // 🛡️ 修复：跳过当前管理员自己的密钥，并严格拦截系统全局配置对象，防止其被当做用户渲染
+                if(k === ak || k === '__GLOBAL_CONFIG__') continue; 
                 const info = d.keys[k]; const u = getUserUsage(k); const tr = document.createElement('tr'); 
                 if(info.is_deleted) tr.className = 'status-del'; 
                 tr.innerHTML = `
@@ -768,7 +628,8 @@ async function renderAuditLogs() {
 
 function filterAuditLogs() {
     const keyword = (document.getElementById('auditSearchInput').value || '').toLowerCase();
-    const filtered = currentAuditLogsData.filter(l => l.user.toLowerCase().includes(keyword) || l.action.toLowerCase().includes(keyword));
+    // 🛡️ 修复：增加容错处理 (l.user || '')，防止数据库存在 NULL 字段导致 toLowerCase() 触发致命崩溃
+    const filtered = currentAuditLogsData.filter(l => (l.user || '').toLowerCase().includes(keyword) || (l.action || '').toLowerCase().includes(keyword));
     drawAuditLogTable(filtered);
 }
 
@@ -2067,6 +1928,115 @@ switchChat = function(id) {
     _oldSwitchChat(id);
 };
 
+// ========================== 统一拦截引擎开始 =================================
+
+// 🔥 核心提速黑科技：将庞大的 Base64 实时转换为轻量级 Blob URL
+function base64ToBlobUrl(base64) {
+    if (!base64 || typeof base64 !== 'string' || !base64.startsWith('data:')) return base64;
+    try {
+        const parts = base64.split(',');
+        const mime = parts[0].match(/:(.*?);/)[1];
+        const bstr = atob(parts[1]);
+        let n = bstr.length;
+        const u8arr = new Uint8Array(n);
+        while(n--){ u8arr[n] = bstr.charCodeAt(n); }
+        return URL.createObjectURL(new Blob([u8arr], {type:mime}));
+    } catch(e) { return base64; }
+}
+
+// 🔥 替换原有的弱伪随机数生成
+function generateSecureToken() {
+    const array = new Uint32Array(2);
+    crypto.getRandomValues(array);
+    return array[0].toString(36) + array[1].toString(36) + Date.now().toString(36);
+}
+
+// 🛡️ 终极网络请求拦截引擎 (集成本地数据库、自动鉴权、安全熔断于一体)
+const originalFetch = window.fetch;
+window.fetch = async function(...args) {
+    const url = args[0]; const options = args[1] || {};
+
+    // 1. 本地数据库无感拦截 (个人素材库)
+    if (typeof url === 'string' && options.body) {
+        try {
+            if (url.includes('/api/get_assets')) {
+                const bodyObj = JSON.parse(options.body);
+                if (bodyObj.library_mode === 'personal') {
+                    await initLocalDB(); const localAssets = await localDB.getAll();
+                    const fastAssets = localAssets.map(a => ({ ...a, image: base64ToBlobUrl(a.image), thumb: base64ToBlobUrl(a.thumb) }));
+                    return new Response(JSON.stringify(fastAssets), { status: 200, headers: { 'Content-Type': 'application/json' } });
+                }
+            }
+            if (url.includes('/api/upload_asset') && options.body instanceof FormData && options.body.get('library_mode') === 'personal') {
+                await initLocalDB();
+                const file = options.body.get('file');
+                const unique_id = 'local_asset_' + generateSecureToken();
+                return new Promise((resolve) => {
+                    const reader = new FileReader();
+                    reader.onloadend = async () => {
+                        const assetObj = {
+                            id: unique_id, title: options.body.get('title') || '未命名', type: options.body.get('type') || 'character',
+                            prompt: options.body.get('prompt') || '', image: reader.result, thumb: options.body.get('thumb_base64') || reader.result,
+                            library_mode: 'personal', created_at: Date.now()
+                        };
+                        await localDB.save(assetObj);
+                        resolve(new Response(JSON.stringify({ success: true, asset: assetObj }), { status: 200 }));
+                    };
+                    if (file) reader.readAsDataURL(file); else resolve(new Response(JSON.stringify({ error: "No file" }), { status: 400 }));
+                });
+            }
+            if (url.includes('/api/delete_asset') || url.includes('/api/update_asset') || url.includes('/api/bulk_update_category')) {
+                const bodyObj = JSON.parse(options.body);
+                const targetIds = bodyObj.ids || (bodyObj.id ? [bodyObj.id] : []);
+                if (targetIds.length > 0 && targetIds[0].startsWith('local_asset_')) {
+                    await initLocalDB();
+                    if (url.includes('delete')) await localDB.delete(targetIds);
+                    if (url.includes('update_asset')) {
+                        const tx = localDBInstance.transaction('assets', 'readwrite'); const store = tx.objectStore('assets');
+                        const getReq = store.get(bodyObj.id);
+                        getReq.onsuccess = () => { if(getReq.result) { let item = getReq.result; item.title = bodyObj.title; item.type = bodyObj.type; item.prompt = bodyObj.prompt; store.put(item); } };
+                    }
+                    if (url.includes('bulk_update')) {
+                         const tx = localDBInstance.transaction('assets', 'readwrite'); const store = tx.objectStore('assets');
+                         targetIds.forEach(id => { const getReq = store.get(id); getReq.onsuccess = () => { if(getReq.result) { let item = getReq.result; item.type = bodyObj.type; store.put(item); } } });
+                    }
+                    return new Response(JSON.stringify({success:true}), { status: 200 });
+                }
+            }
+        } catch(e) {
+            console.error("本地数据库拦截器异常:", e);
+        }
+    }
+
+    // 2. 自动注入安全密钥 (对所有API请求生效)
+    if (typeof url === 'string' && (url.includes('/api/') || url.includes('/admin/') || url.includes('/chat'))) {
+        if (options.method === 'POST') {
+            if (options.body && typeof options.body === 'string') {
+                try {
+                    let bodyObj = JSON.parse(options.body);
+                    if (typeof currentUserKey !== 'undefined' && currentUserKey && !bodyObj.user_key && !bodyObj.password && !bodyObj.admin_key) {
+                        bodyObj.user_key = currentUserKey; 
+                        bodyObj.password = currentUserKey; // 兼容旧API
+                        options.body = JSON.stringify(bodyObj);
+                    }
+                } catch(e) { /* 忽略非JSON体 */ }
+            } else if (options.body instanceof FormData) {
+                if (typeof currentUserKey !== 'undefined' && currentUserKey && !options.body.has('user_key')) { options.body.append('user_key', currentUserKey); }
+            }
+        }
+    }
+
+    // 3. 发起真实请求并设置安全熔断
+    const response = await originalFetch.apply(this, args);
+    if (response && (response.status === 401 || response.status === 403)) {
+        console.warn("🚨 触发高危预警：请求被后端安全盾拦截！");
+        if (typeof forceLogout === 'function') {
+            forceLogout("🚨 安全警告：系统检测到您的请求存在越权行为或凭证已失效，为保护数据安全，已强制熔断连接！");
+        }
+    }
+    return response;
+};
+
 // 4. 修复退出登录变白板，清理旧版冗余，合并精简登出逻辑
 forceLogout = function(alertMsg) {
     if(heartbeatInterval) { clearInterval(heartbeatInterval); heartbeatInterval = null; }
@@ -2094,55 +2064,6 @@ forceLogout = function(alertMsg) {
     }
 };
 
-// 5. 重写页面初始化，让游客能看到漂亮的界面但用不了功能
-const _oldInit = window.init || init;
-init = function() {
-    loadImageModelsToUI();
-    const lastKey = localStorage.getItem('last_used_key'); if (lastKey) document.getElementById('secretKey').value = lastKey;
-    const k = localStorage.getItem('user_secret_key');
-    if (k) { 
-        document.getElementById('secretKey').value = k; 
-        currentUserKey = k;
-        chats = JSON.parse(localStorage.getItem('chats_' + k)) || [];
-        document.getElementById('headerActions').style.display = 'flex';
-        _oldSwitchChat(HUB_ID); 
-        verifyKey(); 
-    } else { 
-        // 🛡️ 游客模式安全兜底：未登录时强制初始化空数组，防止通过 F12 恢复数据
-        chats = []; 
-        personalAssets = [];
-        document.getElementById('keySection').style.display = 'flex'; 
-        document.getElementById('headerActions').style.display = 'none';
-        _oldSwitchChat(HUB_ID); 
-        fetchTeamAssets().then(() => { if (currentChatId === TEAM_ASSET_ID) renderAssetGrid(); });
-    }
-};
-// 6. 🛡️ 终极防黑客网络底层拦截盾 (强行往数据包塞密钥，防伪造请求)
-const _baseFetch = window.fetch;
-window.fetch = async function(...args) {
-    const url = args[0]; const options = args[1] || {};
-    if (typeof url === 'string' && (url.includes('/api/') || url.includes('/admin/') || url.includes('/chat'))) {
-        if (options.method === 'POST') {
-            if (options.body && typeof options.body === 'string') {
-                try {
-                    let bodyObj = JSON.parse(options.body);
-                    if (typeof currentUserKey !== 'undefined' && currentUserKey && !bodyObj.user_key && !bodyObj.password && !bodyObj.admin_key) {
-                        bodyObj.user_key = currentUserKey; bodyObj.password = currentUserKey; options.body = JSON.stringify(bodyObj);
-                    }
-                } catch(e) {}
-            } else if (options.body instanceof FormData) {
-                if (typeof currentUserKey !== 'undefined' && currentUserKey && !options.body.has('user_key')) { options.body.append('user_key', currentUserKey); }
-            }
-        }
-    }
-    const response = await _baseFetch.apply(this, args);
-    // 只要后端发现是黑客没传密钥（401/403），前端瞬间拉响警报踢下线
-    if (response && (response.status === 401 || response.status === 403)) {
-        if (typeof forceLogout === 'function') forceLogout("🚨 安全拦截：检测到非法请求，已强制熔断连接并退回游客模式！");
-    }
-    return response;
-};
-
 // 重启一次引擎，应用最高权限
 setTimeout(() => { init(); }, 50);
-// ========================== 引擎结束 =========================================
+// ========================== 统一拦截引擎结束 =========================================

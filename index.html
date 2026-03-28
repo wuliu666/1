@@ -22,7 +22,7 @@
         <button class="collapse-btn-top" onclick="toggleSidebar()" title="收起左侧菜单面板">◀</button>
     </div>
 
-    <button class="new-chat-btn" onclick="createNewChat()" title="开启一次全新的通用AI问答">＋ 新建闲聊</button>
+    <button id="createNewChatBtn" class="new-chat-btn" title="开启一次全新的通用AI问答">＋ 新建闲聊</button>
     <div class="storyboard-btn" id="storyboardBtn" onclick="switchChat(HUB_ID)" title="进入专业的剧本结构化转分镜工作流"><span>🎬 剧本转分镜 (九雨)</span><span>👉</span></div>
     <div class="storyboard-btn" id="imageGenBtn" onclick="switchChat(IMAGE_GEN_ID)" style="margin-top: 8px;" title="使用内置的高级大模型进行图片生成"><span>🎨 AI生图控制台</span><span>👉</span></div>
     
@@ -120,6 +120,14 @@
                 <div class="size-unit">PX</div>
             </div>
         </div>
+        
+        <div id="aiImageWarningBanner" style="background: rgba(0, 122, 255, 0.08); border: 1px solid rgba(0, 122, 255, 0.2); border-radius: 12px; padding: 12px 16px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; color: var(--shen-color); font-size: 0.85rem; animation: pop 0.3s ease;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 1.2rem;">💡</span>
+                <span><strong>温馨提示：</strong> 为节约资源，AI 生成的临时图片仅在云端保留 24 小时。如需永久保留，请及时点击图片下方的 <strong>“保存至素材库”</strong>。</span>
+            </div>
+            <button onclick="this.parentElement.style.display='none'" style="background: transparent; border: none; color: var(--shen-color); font-size: 1.5rem; cursor: pointer; padding: 0 5px; line-height: 1; transition: 0.2s;" onmouseover="this.style.transform='scale(1.2)'" onmouseout="this.style.transform='scale(1)'" title="关闭提醒">×</button>
+        </div>
 
         <div class="composer-box" id="composerBox" ondragover="event.preventDefault(); this.classList.add('drag-over');" ondragleave="this.classList.remove('drag-over');" ondrop="event.preventDefault(); this.classList.remove('drag-over'); handleComposerDrop(event);">
             
@@ -146,9 +154,6 @@
                 <button class="send-btn desktop-send" style="width: 36px; height: 36px; font-size: 1.1rem; margin-bottom: 2px;" onclick="sendImageGenMessage()">↑</button>
                 <span class="mobile-send-btn" onclick="sendImageGenMessage()" style="font-size: 1.4rem; margin-left: 8px; margin-bottom: 4px; color: var(--bg-user-msg); cursor: pointer;">⬆️</span>
             </div>
-        </div>
-        <div style="text-align: center; font-size: 0.8rem; color: var(--text-secondary); margin-top: 12px;">
-            💡 温馨提示：为节约资源，AI 生成的图片链接仅保留 24 小时，请及时下载或保存至素材库。
         </div>
     </div>
 
