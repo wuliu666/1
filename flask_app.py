@@ -308,18 +308,25 @@ def load_keys():
     if _keys_cache is not None and (time.time() - _keys_cache_time < 3):
         return _keys_cache
         
-    if os.path.exists(KEYS_FILE):
-        try:
-            with open(KEYS_FILE, 'r', encoding='utf-8') as f: 
-                _keys_cache = json.load(f)
-                _keys_cache_time = time.time()
-                return _keys_cache
-        except: pass
+    with keys_lock:  # 💡 隐患修复：加入文件锁，防止高并发下同时读取导致文件清空
+        if os.path.exists(KEYS_FILE):
+            try:
+                with open(KEYS_FILE, 'r', encoding='utf-8') as f: 
+                    _keys_cache = json.load(f)
+                    _keys_cache_time = time.time()
+                    return _keys_cache
+            except: pass
     return {MASTER_KEY: {"status": "active", "note": "超级管理员", "is_deleted": False}}
 
 def save_keys(data):
-    with open(KEYS_FILE, 'w', encoding='utf-8') as f:
-        json.dump(data, f, ensure_ascii=False, indent=4)
+    global _keys_cache, _keys_cache_time
+    import time
+    with keys_lock:  # 💡 隐患修复：写入时加锁，绝对保证 keys.json 写入完整性
+        with open(KEYS_FILE, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=4)
+        # 写入后立刻更新缓存，防止接下来3秒内读取到旧数据
+        _keys_cache = data
+        _keys_cache_time = time.time()
 
 # ================= 🛡️ 全局终极安全盾 (拦截所有非法请求) =================
 # 已优化：删除了底部重复冗余的鉴权代码，合二为一，极大降低性能消耗
