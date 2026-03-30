@@ -2042,6 +2042,10 @@ forceLogout = function(alertMsg) {
     if(heartbeatInterval) { clearInterval(heartbeatInterval); heartbeatInterval = null; }
     currentUserKey = null; currentSessionToken = null;
     
+    // 🛡️ 极度安全修复：彻底抹除浏览器本地私有密钥指纹！防止恶意用户通过 F5 刷新绕过拦截进行重连
+    localStorage.removeItem('user_secret_key');
+    localStorage.removeItem('last_used_key');
+    
     // 🛡️ 物理隔离：强制清空内存中的所有私有聊天和素材数据！
     chats = []; 
     personalAssets = [];

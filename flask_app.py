@@ -1,6 +1,10 @@
 import sys, os, json, requests, sqlite3, base64, secrets, hmac, socket
 from urllib.parse import urlparse
 import google.generativeai as genai
+import advocate
+from filelock import FileLock
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
 from dotenv import load_dotenv
@@ -11,14 +15,30 @@ load_dotenv()
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
 
-# 💡 安全优化：从环境变量读取允许的跨域来源，生产环境请务必设置为您的前端域名
-CORS_ORIGINS = os.environ.get("CORS_ALLOWED_ORIGINS", "*").split(',')
-CORS(app, supports_credentials=True, resources={r"/*": {"origins": CORS_ORIGINS}})
+# 💡 隐患修复：收紧 CORS 跨域权限，绝对禁止默认开放全局 "*"
+allowed_origins_str = os.environ.get("CORS_ALLOWED_ORIGINS", "")
+if allowed_origins_str == "*" or not allowed_origins_str:
+    CORS_ORIGINS = []
+else:
+    CORS_ORIGINS = allowed_origins_str.split(',')
+CORS(app, supports_credentials=True, origins=CORS_ORIGINS)
+
+# 💡 隐患修复：防暴力破解限制器初始化
+limiter = Limiter(
+    get_remote_address,
+    app=app,
+    default_limits=["200 per day", "50 per hour"],
+    storage_uri="memory://"
+)
 
 # ================= 配置区 =================
 MASTER_KEY = os.environ.get("MASTER_KEY", "admin_666") # 增强：避免密钥硬编码暴露
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 KEYS_FILE = os.path.join(BASE_DIR, "keys.json")
+
+# 💡 隐患修复：创建全局文件锁，防止高并发下 keys.json 读写冲突导致文件清空崩溃
+keys_lock = FileLock(os.path.join(BASE_DIR, "keys.json.lock"))
+
 
 DB_FILE = os.path.join(BASE_DIR, 'assets.db')
 ASSETS_DIR = os.path.join(BASE_DIR, 'static', 'assets')
@@ -30,6 +50,10 @@ ALLOWED_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.gif', '.webp'}
 def init_db():
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
+    # 🛡️ 高并发优化：开启 SQLite WAL (预写日志) 模式，允许多个用户同时极速读写不锁死
+    c.execute('PRAGMA journal_mode=WAL;')
+    c.execute('PRAGMA synchronous=NORMAL;')
+    
     c.execute('''CREATE TABLE IF NOT EXISTS assets (
         id TEXT PRIMARY KEY, title TEXT, type TEXT, prompt TEXT, 
         file_path TEXT, library_mode TEXT, uploader_key TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -273,10 +297,23 @@ AGENT_SOUL = """
 3. **术语使用**：可以使用专业术语（如OSS、推焦），但必须在括号内用白话解释效果（如“营造压迫感”）。
 """
 
+# 🛡️ 高并发优化：内存级密钥缓存，防止2000人并发时磁盘I/O爆炸
+_keys_cache = None
+_keys_cache_time = 0
+
 def load_keys():
+    global _keys_cache, _keys_cache_time
+    import time
+    # 缓存有效期 3 秒，既保证极速响应，又能让后台修改及时生效
+    if _keys_cache is not None and (time.time() - _keys_cache_time < 3):
+        return _keys_cache
+        
     if os.path.exists(KEYS_FILE):
         try:
-            with open(KEYS_FILE, 'r', encoding='utf-8') as f: return json.load(f)
+            with open(KEYS_FILE, 'r', encoding='utf-8') as f: 
+                _keys_cache = json.load(f)
+                _keys_cache_time = time.time()
+                return _keys_cache
         except: pass
     return {MASTER_KEY: {"status": "active", "note": "超级管理员", "is_deleted": False}}
 
@@ -288,6 +325,10 @@ def save_keys(data):
 # 已优化：删除了底部重复冗余的鉴权代码，合二为一，极大降低性能消耗
 @app.before_request
 def check_auth_global():
+    # 💡 隐患修复：防止直接在浏览器地址栏访问并下载后端的关键数据库或配置文件
+    if request.path.endswith(('.json', '.db', '.env', '.py', '.txt', '.gitignore', '.lock')):
+        return jsonify({"error": "Access Denied: 敏感文件禁止访问"}), 403
+
     # 💡 核心修复：放行浏览器的 OPTIONS 跨域探路请求，防止前端报跨域拦截错误
     if request.method == 'OPTIONS':
         return None
@@ -341,6 +382,7 @@ def heartbeat():
     return jsonify({"valid": False})
 
 @app.route('/verify', methods=['POST'])
+@limiter.limit("5 per minute")
 def verify():
     pwd = request.json.get('user_key')
     session_token = request.json.get('session_token')
@@ -514,7 +556,8 @@ def get_assets():
     data = request.json
     library_mode = data.get('library_mode', 'team')
     user_key = data.get('user_key', '')
-    conn = sqlite3.connect(DB_FILE)
+    # 🛡️ 并发保护：添加 timeout=20 避免多用户高频加载素材时触发 database is locked 死锁
+    conn = sqlite3.connect(DB_FILE, timeout=20)
     conn.row_factory = dict_factory
     c = conn.cursor()
     if library_mode == 'team': c.execute("SELECT id, title, type, prompt, file_path as image FROM assets WHERE library_mode='team' ORDER BY created_at DESC")
@@ -523,8 +566,12 @@ def get_assets():
     conn.close()
     for r in rows:
         expected_thumb = r['image'].rsplit('.', 1)[0] + '_thumb.jpg'
-        if os.path.exists(os.path.join(BASE_DIR, expected_thumb.lstrip('/'))): r['thumb'] = expected_thumb
-        else: r['thumb'] = r['image']
+        # 🛡️ 核心性能优化：拦截云端链接的无效本地磁盘扫描，消除灾难性的 I/O 阻塞拥堵！
+        if str(r['image']).startswith('http'):
+            r['thumb'] = expected_thumb
+        else:
+            if os.path.exists(os.path.join(BASE_DIR, expected_thumb.lstrip('/'))): r['thumb'] = expected_thumb
+            else: r['thumb'] = r['image']
     return jsonify(rows)
 
 @app.route('/api/delete_asset', methods=['POST'])
@@ -609,8 +656,11 @@ def bulk_update_category():
 # ================= 后台全量配置与测试接口 =================
 def mask_secret(secret):
     if not secret: return ""
-    if len(secret) <= 6: return "******"
-    return secret[:3] + "******" + secret[-4:]
+    # 🛡️ 极度安全修复：彻底杜绝短密钥掩码泄漏漏洞！
+    # 如果密钥长度过短，强制只显示前 2 位，其余全部用固定长度的星号掩盖，断绝推测可能。
+    if len(secret) <= 12: 
+        return secret[:2] + "********" 
+    return secret[:4] + "********" + secret[-4:]
 
 def resolve_secret_from_masked(input_key, global_conf):
     if "******" not in input_key: return input_key
@@ -712,14 +762,14 @@ def test_api():
         proxies = {'http': proxy, 'https': proxy} if proxy else None
 
         if channel == 'gemini':
-            # 💡 安全修复：移除线程不安全的 os.environ 修改。
-            # 在此处动态测试 Gemini 代理需要更复杂的、隔离的进程，
-            # 当前的修复是为了保证核心应用的线程安全。
-            # 如果需要测试代理，请在服务器启动环境变量中设置。
-            genai.configure(api_key=api_key)
-            model = genai.GenerativeModel('gemini-1.5-flash')
-            resp = model.generate_content("Hello")
-            if resp.text: return jsonify({"success": True})
+            # 🛡️ 极度安全修复：彻底废除使用 genai.configure() 进行测试！
+            # 避免管理员测试错误密钥时污染全局变量从而导致全站崩溃。
+            # 改用底层 REST API 发送沙盒测试请求，实现 100% 的线程与环境隔离。
+            test_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+            payload = {"contents": [{"parts": [{"text": "Hello"}]}]}
+            r = requests.post(test_url, json=payload, timeout=15, proxies=proxies)
+            if r.ok: return jsonify({"success": True})
+            else: return jsonify({"success": False, "msg": f"接口报错 {r.status_code}: {r.text[:80]}"})
         else:
             headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
             payload = {"model": "gpt-4o-mini" if channel == "grsai" else "gemini-3-pro-preview", "messages": [{"role": "user", "content": "Hello"}], "max_tokens": 5}
@@ -823,13 +873,17 @@ def generate_image():
             # 安全修复：拦截 SSRF (服务端请求伪造)，防止获取内网服务数据
             parsed = urlparse(url)
             if parsed.scheme not in ('http', 'https') or not parsed.hostname: return url
+            
             try:
-                ip = socket.gethostbyname(parsed.hostname)
-                if ip.startswith(('127.', '10.', '192.168.', '172.', '169.254.', '0.')): return url
-            except Exception: pass
-
-            r = requests.get(url, timeout=20)
-            if not r.ok: return url
+                # 💡 隐患修复：引入 advocate 替代 requests，底层锁死 DNS 解析，彻底防范重绑定攻击
+                r = advocate.get(url, timeout=20)
+                if not r.ok: return url
+            except advocate.UnacceptableAddressException:
+                print("检测到 SSRF 攻击尝试，已成功拦截！")
+                return url
+            except Exception as e:
+                print(f"图片安全拉取失败: {e}")
+                return url
 
             file_name = f"ai_gallery/gen_{secrets.token_hex(16)}.png"  
 
