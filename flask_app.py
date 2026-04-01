@@ -15,13 +15,13 @@ load_dotenv()
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
 
-# 💡 隐患修复：收紧 CORS 跨域权限，同时兼容本地开发与线上部署
-allowed_origins_str = os.environ.get("CORS_ALLOWED_ORIGINS", "*")
-if allowed_origins_str == "*":
-    CORS(app) # 默认允许所有跨域请求，方便本地测试
+# 🛡️ 安全修复 1：智能跨域策略。未配置时仅允许本地环境跨域，避免公网暴露
+allowed_origins_str = os.environ.get("CORS_ALLOWED_ORIGINS", "")
+if allowed_origins_str and allowed_origins_str != "*":
+    CORS_ORIGINS = [origin.strip() for origin in allowed_origins_str.split(',')]
+    CORS(app, supports_credentials=True, origins=CORS_ORIGINS)
 else:
-    CORS_ORIGINS = allowed_origins_str.split(',')
-    CORS(app, origins=CORS_ORIGINS)
+    CORS(app, supports_credentials=True, origins=["http://127.0.0.1:5500", "http://localhost:5500", "http://localhost:3000"])
 
 # 💡 隐患修复：防暴力破解限制器初始化
 limiter = Limiter(
@@ -32,7 +32,14 @@ limiter = Limiter(
 )
 
 # ================= 配置区 =================
-MASTER_KEY = os.environ.get("MASTER_KEY", "admin_666") # 增强：避免密钥硬编码暴露
+# 🛡️ 安全修复 2：根除硬编码弱口令，防止被暴力破解
+env_master_key = os.environ.get("MASTER_KEY")
+if not env_master_key or env_master_key == "admin_666":
+    import secrets
+    MASTER_KEY = secrets.token_hex(16)
+    print(f"🚨 警告：未配置 MASTER_KEY 或使用了默认弱口令，已临时生成高强度随机密钥: {MASTER_KEY}")
+else:
+    MASTER_KEY = env_master_key
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 KEYS_FILE = os.path.join(BASE_DIR, "keys.json")
 
@@ -356,8 +363,8 @@ def check_auth_global():
         keys = load_keys()
         
         # 安全修复：引入 HMAC 对比，防止黑客通过对比耗时计算(Timing Attack)爆破超级密码
-        # 💡 修复了因复制粘贴导致的代码截断语法错误
-        is_master = hmac.compare_digest(str(user_key), MASTER_KEY)
+        # 💡 修复了因复制粘贴导致的代码截断语法错误，并强制转换类型防止崩溃
+        is_master = hmac.compare_digest(str(user_key or ''), str(MASTER_KEY))
         
         if not is_master and user_key not in keys:
             return jsonify({"error": "非法请求：无效的密钥", "code": "AUTH_FAILED"}), 401
@@ -373,8 +380,7 @@ def heartbeat():
     device_type = data.get('device_type')
     
     if not user_key or not session_token or not device_type: return jsonify({"valid": False})
-    if hmac.compare_digest(user_key, MASTER_KEY): return jsonify({"valid": True})
-        
+    if hmac.compare_digest(str(user_key or ''), str(MASTER_KEY)): return jsonify({"valid": True})
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     c.execute("SELECT desktop_token, mobile_token FROM user_sessions_v2 WHERE user_key=?", (user_key,))
@@ -396,7 +402,7 @@ def verify():
     device_type = request.json.get('device_type')
     keys = load_keys()
     
-    is_master = hmac.compare_digest(pwd, MASTER_KEY)
+    is_master = hmac.compare_digest(str(pwd or ''), str(MASTER_KEY))
     
     if is_master or pwd in keys:
         if not is_master and keys.get(pwd, {}).get("is_deleted", False):
@@ -438,7 +444,7 @@ def change_key():
     new_key = data.get('new_key')
     
     if not old_key or not new_key or len(new_key) < 3: return jsonify({"error": "新密钥格式不合法（至少3位）"}), 400
-    if hmac.compare_digest(old_key, MASTER_KEY): return jsonify({"error": "超级管理员密钥禁止修改！"}), 403
+    if hmac.compare_digest(str(old_key or ''), str(MASTER_KEY)): return jsonify({"error": "超级管理员密钥禁止修改！"}), 403
         
     keys = load_keys()
     if old_key not in keys: return jsonify({"error": "原密钥不存在或已被删除"}), 403
@@ -815,6 +821,7 @@ def check_balance():
         return jsonify({"success": False, "msg": str(e)[:80]})
 
 @app.route('/api/generate_image', methods=['POST'])
+@limiter.limit("20 per minute")
 def generate_image():
     from flask import Response, stream_with_context
     import json, os, requests, uuid
@@ -1012,6 +1019,7 @@ def generate_image():
     return Response(stream_with_context(generate_stream()), mimetype='text/event-stream')
 
 @app.route('/chat', methods=['POST'])
+@limiter.limit("60 per minute")
 def chat():
     data = request.json
     pwd = data.get('password')
