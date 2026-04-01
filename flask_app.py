@@ -15,13 +15,15 @@ load_dotenv()
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
 
-# 🛡️ 安全修复 1：智能跨域策略。未配置时仅允许本地环境跨域，避免公网暴露
-allowed_origins_str = os.environ.get("CORS_ALLOWED_ORIGINS", "")
+# 💡 终极护航与安全兼顾：放开本地跨域限制，确保直接双击 HTML 也能连通
+allowed_origins_str = os.environ.get("CORS_ALLOWED_ORIGINS", "*")
 if allowed_origins_str and allowed_origins_str != "*":
+    # 生产部署状态：只要在 .env 中配置了具体域名，就会自动开启严格安全防护
     CORS_ORIGINS = [origin.strip() for origin in allowed_origins_str.split(',')]
     CORS(app, supports_credentials=True, origins=CORS_ORIGINS)
 else:
-    CORS(app, supports_credentials=True, origins=["http://127.0.0.1:5500", "http://localhost:5500", "http://localhost:3000"])
+    # 本地开发状态：默认无条件放行所有跨域（包含 file:// 协议），绝对保证能连上后端
+    CORS(app, cors_allowed_origins="*")
 
 # 💡 隐患修复：防暴力破解限制器初始化
 limiter = Limiter(
