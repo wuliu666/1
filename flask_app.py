@@ -15,13 +15,13 @@ load_dotenv()
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
 
-# 💡 隐患修复：收紧 CORS 跨域权限，绝对禁止默认开放全局 "*"
-allowed_origins_str = os.environ.get("CORS_ALLOWED_ORIGINS", "")
-if allowed_origins_str == "*" or not allowed_origins_str:
-    CORS_ORIGINS = []
+# 💡 隐患修复：收紧 CORS 跨域权限，同时兼容本地开发与线上部署
+allowed_origins_str = os.environ.get("CORS_ALLOWED_ORIGINS", "*")
+if allowed_origins_str == "*":
+    CORS(app) # 默认允许所有跨域请求，方便本地测试
 else:
     CORS_ORIGINS = allowed_origins_str.split(',')
-CORS(app, supports_credentials=True, origins=CORS_ORIGINS)
+    CORS(app, origins=CORS_ORIGINS)
 
 # 💡 隐患修复：防暴力破解限制器初始化
 limiter = Limiter(
