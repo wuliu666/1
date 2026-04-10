@@ -25,14 +25,13 @@ else:
     # 本地开发状态：默认无条件放行所有跨域（包含 file:// 协议），绝对保证能连上后端
     CORS(app, cors_allowed_origins="*")
 
-# 💡 隐患修复：防暴力破解限制器初始化
+# 💡 隐患修复：防暴力破解限制器初始化 (精准限流，兼顾体验与安全)
 limiter = Limiter(
     get_remote_address,
     app=app,
-    default_limits=["5000 per day", "1000 per hour"], # ⚠️ 提高全局限制，防止正常的高频对话和心跳检测被误杀
+    default_limits=["2000 per day", "300 per hour"],
     storage_uri="memory://"
 )
-
 # ================= 配置区 =================
 # 🛡️ 安全修复 2：根除硬编码弱口令，防止被暴力破解
 env_master_key = os.environ.get("MASTER_KEY")
@@ -375,7 +374,7 @@ def check_auth_global():
 # =====================================================================
 
 @app.route('/api/heartbeat', methods=['POST'])
-@limiter.exempt # ⚠️ 必须豁免心跳接口的频率限制，否则每8秒一次的请求会瞬间耗尽用户的全部额度
+@limiter.limit("15 per minute")
 def heartbeat():
     data = request.json
     user_key = data.get('user_key')
@@ -398,7 +397,7 @@ def heartbeat():
     return jsonify({"valid": False})
 
 @app.route('/verify', methods=['POST'])
-@limiter.limit("30 per minute") # ⚠️ 放宽验证限制，允许用户正常多次刷新网页
+@limiter.limit("10 per minute")
 def verify():
     pwd = request.json.get('user_key')
     session_token = request.json.get('session_token')
