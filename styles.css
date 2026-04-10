@@ -6,11 +6,22 @@
     --highlight-color: #ff9500; --overlay-bg: rgba(0,0,0,0.5); 
     --shen-color: #007AFF; --danger-color: #ff3b30; 
 }
+/* 补回丢失的 body 基础样式与浅色弥散光 */
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: var(--bg-body); background-image: radial-gradient(circle at top right, rgba(0, 122, 255, 0.05), transparent 40%), radial-gradient(circle at bottom left, rgba(255, 149, 0, 0.03), transparent 40%); color: var(--text-main); display: flex; height: 100vh; margin: 0; overflow: hidden; }
+
+/* 升级深邃午夜蓝暗黑模式 */
 body.dark-theme { 
-    --bg-body: #000000; --bg-sidebar: #1c1c1e; --bg-container: #1c1c1e; 
-    --border-color: #38383a; --text-main: #f5f5f7; --text-secondary: #98989d; 
-    --bg-input: #2c2c2e; --bg-hover: #3a3a3c; --bg-user-msg: #0a84ff; 
-    --bg-bot-msg: #2c2c2e; --shen-color: #0a84ff; --danger-color: #ff453a; 
+    --bg-body: #0b0c10; 
+    --bg-sidebar: rgba(18, 18, 26, 0.6); 
+    --bg-container: transparent; 
+    --border-color: rgba(255, 255, 255, 0.08); 
+    --text-main: #e0e6ed; --text-secondary: #8b949e; 
+    --bg-input: rgba(255, 255, 255, 0.05); --bg-hover: rgba(255, 255, 255, 0.08); 
+    --bg-user-msg: linear-gradient(135deg, #0a84ff, #5e5ce6); 
+    --bg-bot-msg: rgba(30, 30, 40, 0.6); 
+    --shen-color: #5e5ce6; --danger-color: #ff453a; 
+    background-color: var(--bg-body);
+    background-image: radial-gradient(circle at top right, rgba(94, 92, 230, 0.15), transparent 45%), radial-gradient(circle at bottom left, rgba(10, 132, 255, 0.1), transparent 45%);
 }
 
 /* 🌟 全局滚动条美化 */
@@ -68,7 +79,14 @@ body.dark-theme .back-hub-btn { background: rgba(10, 132, 255, 0.15); }
 .message { max-width: 85%; padding: 14px 20px; border-radius: 20px; font-size: 0.96rem; line-height: 1.6; word-wrap: break-word; display: flex; flex-direction: column; animation: slideUpFade 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; box-shadow: 0 2px 8px rgba(0,0,0,0.03); }
 .user-msg { background: linear-gradient(135deg, #007AFF, #0056b3); color: white; align-self: flex-end; border-bottom-right-radius: 4px; box-shadow: 0 4px 12px rgba(0, 122, 255, 0.25); }
 .bot-msg { background: var(--bg-bot-msg); color: var(--text-main); align-self: flex-start; border-bottom-left-radius: 4px; border: 1px solid rgba(0,0,0,0.04); }
-body.dark-theme .bot-msg { border: 1px solid rgba(255,255,255,0.05); }
+body.dark-theme .bot-msg { 
+    background: rgba(30, 30, 40, 0.45); 
+    backdrop-filter: blur(16px); 
+    -webkit-backdrop-filter: blur(16px); 
+    border: 1px solid rgba(255, 255, 255, 0.04); 
+    border-top: 1px solid rgba(255, 255, 255, 0.1); 
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3); 
+}
 .msg-content { white-space: pre-wrap; word-wrap: break-word; }
 .msg-actions { display: flex; gap: 8px; margin-top: 12px; padding-top: 10px; justify-content: flex-end; border-top: 1px dashed rgba(128, 128, 128, 0.3); }
 .user-msg .msg-actions { border-top-color: rgba(255, 255, 255, 0.3); }
@@ -270,8 +288,17 @@ body.dark-theme .admin-copy-btn:hover { background: rgba(255, 255, 255, 0.2); co
     .hub-greeting-ask { font-size: 2.2rem; font-weight: 500; color: var(--text-main); line-height: 1.2; letter-spacing: -0.5px; }
     
     .hub-chips-container { display: flex; flex-direction: column; align-items: flex-start; gap: 14px; margin-bottom: 40px; }
-    .hub-chip { background: var(--bg-container); border: 1px solid var(--border-color); border-radius: 24px; padding: 12px 24px; font-size: 1rem; font-weight: 500; color: var(--text-main); cursor: pointer; transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1); display: flex; align-items: center; box-shadow: 0 2px 10px rgba(0,0,0,0.03); }
-    .hub-chip:active { background: var(--bg-hover); transform: scale(0.95); }
+    .hub-chip { background: var(--bg-container); border: 1px solid var(--border-color); border-radius: 24px; padding: 12px 24px; font-size: 1rem; font-weight: 500; color: var(--text-main); cursor: pointer; transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); display: flex; align-items: center; box-shadow: 0 2px 10px rgba(0,0,0,0.03); }
+    .hub-chip:active { transform: scale(0.95); }
+    
+    /* 专属暗黑模式卡片光效 */
+    body.dark-theme .hub-chip { background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(10px); }
+    body.dark-theme .hub-chip:hover { 
+        background: rgba(255, 255, 255, 0.08); 
+        border-color: rgba(94, 92, 230, 0.5); 
+        box-shadow: 0 0 20px rgba(94, 92, 230, 0.15), 0 4px 15px rgba(0,0,0,0.4); 
+        transform: translateY(-2px); 
+    }
 
     .sidebar { position: absolute; left: 0; top: 0; bottom: 0; z-index: 1001; box-shadow: 4px 0 15px rgba(0,0,0,0.15); transition: margin-left 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
     .mobile-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; backdrop-filter: blur(2px); transition: opacity 0.3s;}
