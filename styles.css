@@ -494,53 +494,60 @@ body.dark-theme .asset-card:hover { box-shadow: 0 16px 35px rgba(0,0,0,0.6); }
 }
 body.dark-theme .asset-card.selected { box-shadow: 0 0 0 2px var(--shen-color), 0 16px 35px rgba(94, 92, 230, 0.3); }
 
-/* 🌟 画廊核心重构3：底部文字信息容器（默认背景透明，鼠标悬停时才变为黑色渐变蒙版） */
+/* 🌟 终极画廊重构3：精准隐藏底部信息层与操作按钮（绝不误伤图片） */
+/* 锁定底部文字信息层（默认透明、下沉） */
 .asset-card > div:last-of-type:not(.bulk-overlay) {
     position: absolute;
     bottom: 0;
     left: 0;
     right: 0;
-    /* 💡 核心修复点1：默认背景设为透明，绝不遮挡图片！ */
-    background: transparent !important;
+    background: linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0.9) 100%) !important;
     padding: 36px 16px 16px 16px !important;
     border-top: none !important;
-    background-color: transparent !important;
     z-index: 5;
-    /* 为蒙版的出现添加平滑的 transition 效果 */
-    transition: background 0.3s ease;
-}
-
-/* 强制文字变白并增加阴影，在蒙版上绝对清晰 */
-.asset-card > div:last-of-type:not(.bulk-overlay) *,
-.asset-card > div:last-of-type:not(.bulk-overlay) span {
-    color: rgba(255, 255, 255, 0.95) !important;
-    text-shadow: 0 1px 3px rgba(0,0,0,0.8);
-}
-
-/* 🌟 核心修复点2：只有当鼠标悬浮在卡片上时，底部文字信息的背景才变为电影级黑色渐变蒙版 */
-.asset-card:hover > div:last-of-type:not(.bulk-overlay) {
-    /* 从透明到黑色的平滑渐变，完美承载文字 */
-    background: linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0.9) 100%) !important;
-}
-
-/* 🌟 画廊核心重构4：操作按钮极致收纳（默认隐藏，悬停时从底部弹射浮现） */
-.asset-card button,
-.asset-card .action-buttons {
-    opacity: 0;
-    transform: translateY(15px);
+    opacity: 0 !important;
+    transform: translateY(10px);
     transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1) !important;
-    pointer-events: none; /* 隐藏时不可点击，防止误触 */
+    pointer-events: none !important;
+}
+
+/* 精准锁定所有角标（角色设定）、名字标签、删除按钮等零散组件 */
+.asset-card button,
+.asset-card .action-buttons,
+.asset-card > span,
+.asset-card > div.badge,
+.asset-card > div.tag,
+.asset-card > div[style*="absolute"] {
+    opacity: 0 !important;
+    transform: translateY(10px);
+    transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    pointer-events: none !important;
     z-index: 10;
 }
 
+/* 🌟 鼠标悬停时：所有隐藏的信息层、按钮、角标优雅上浮显现 */
+.asset-card:hover > div:last-of-type:not(.bulk-overlay),
 .asset-card:hover button,
-.asset-card:hover .action-buttons {
-    opacity: 1;
+.asset-card:hover .action-buttons,
+.asset-card:hover > span,
+.asset-card:hover > div.badge,
+.asset-card:hover > div.tag,
+.asset-card:hover > div[style*="absolute"] {
+    opacity: 1 !important;
     transform: translateY(0);
-    pointer-events: auto; /* 浮现后恢复点击 */
+    pointer-events: auto !important;
 }
 
-/* 强制图片占满卡片，为绝对定位的悬浮蒙版提供空间 */
+/* 强制底部文字变白并增加清晰阴影，清除内部span的底色干扰 */
+.asset-card > div:last-of-type:not(.bulk-overlay) *,
+.asset-card > div:last-of-type:not(.bulk-overlay) span {
+    color: rgba(255, 255, 255, 0.95) !important;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.8) !important;
+    background: transparent !important; 
+    border: none !important;
+}
+
+/* 保证底图完美填充且不受任何 opacity 影响 */
 .asset-card img {
     width: 100%;
     height: auto;
