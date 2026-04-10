@@ -2071,20 +2071,32 @@ forceLogout = function(alertMsg) {
 const chatInputBox = document.getElementById('userInput');
 if (chatInputBox) {
     chatInputBox.addEventListener('input', function() {
-        // 先重置高度为 auto，精确计算 scrollHeight
+        // 使用 auto 才能平滑计算真实高度，彻底告别闪烁跳动
         this.style.height = 'auto'; 
         const newHeight = this.scrollHeight;
         
-        // 根据输入内容动态撑开高度，设置最小和最大范围
         if (newHeight <= 60) {
             this.style.height = '60px';
             this.classList.remove('show-scrollbar');
-        } else if (newHeight >= 200) {
-            this.style.height = '200px';
+        } else if (newHeight >= 300) {
+            this.style.height = '300px';
             this.classList.add('show-scrollbar');
         } else {
             this.style.height = newHeight + 'px';
             this.classList.remove('show-scrollbar');
+        }
+    });
+}
+
+// 给发送按钮增加点击后输入框回缩逻辑
+const realSendBtn = document.querySelector('.desktop-send');
+if (realSendBtn) {
+    realSendBtn.addEventListener('click', () => {
+        if (chatInputBox) {
+            setTimeout(() => {
+                chatInputBox.style.height = '60px';
+                chatInputBox.classList.remove('show-scrollbar');
+            }, 50);
         }
     });
 }

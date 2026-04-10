@@ -98,9 +98,11 @@ body.dark-theme .bot-msg .msg-actions { border-top-color: rgba(255, 255, 255, 0.
 .msg-action-btn:hover { background: rgba(128, 128, 128, 0.2); opacity: 1; }
 .delete-action:hover { color: var(--danger-color); opacity: 1; }
 
-.input-section { margin: 0 auto 24px auto; max-width: 850px; width: 90%; padding: 12px 20px; display: flex; gap: 12px; border: 1px solid rgba(0,0,0,0.08); border-radius: 24px; align-items: flex-end; transition: 0.3s; position: relative; background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); box-shadow: 0 10px 30px rgba(0,0,0,0.05), 0 1px 3px rgba(0,0,0,0.02); z-index: 5; }
+.input-section { margin: 0 auto 24px auto; max-width: 850px; width: 90%; padding: 12px 20px; display: flex; flex-direction: column; gap: 8px; border: 1px solid rgba(0,0,0,0.08); border-radius: 24px; align-items: stretch; transition: 0.3s; position: relative; background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); box-shadow: 0 10px 30px rgba(0,0,0,0.05), 0 1px 3px rgba(0,0,0,0.02); z-index: 5; }
+.input-section:focus-within { border-color: rgba(0, 122, 255, 0.4); box-shadow: 0 12px 35px rgba(0,0,0,0.08), 0 0 0 3px rgba(0, 122, 255, 0.1); }
+body.dark-theme .input-section:focus-within { border-color: rgba(94, 92, 230, 0.6); box-shadow: 0 12px 35px rgba(0,0,0,0.4), 0 0 0 3px rgba(94, 92, 230, 0.15); }
 body.dark-theme .input-section { border: 1px solid rgba(255,255,255,0.1); background: rgba(28, 28, 30, 0.75); box-shadow: 0 10px 30px rgba(0,0,0,0.3), 0 1px 3px rgba(0,0,0,0.1); }
-textarea { flex: 1; padding: 14px 10px; border-radius: 12px; border: none; background: transparent; color: var(--text-main); resize: none; outline: none; height: 60px; min-height: 60px; max-height: 200px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 1.05rem; box-sizing: border-box; transition: background 0.3s, border 0.3s; line-height: 1.6; scrollbar-width: none; overflow-y: hidden; }
+textarea { width: 100%; padding: 8px 10px; border-radius: 12px; border: none; background: transparent; color: var(--text-main); resize: none; outline: none; height: 60px; min-height: 60px; max-height: 300px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 1.05rem; box-sizing: border-box; transition: height 0.2s; line-height: 1.6; scrollbar-width: none; overflow-y: hidden; margin-bottom: 4px; }
 textarea:focus { box-shadow: none; border-color: transparent; }
 textarea.show-scrollbar { overflow-y: auto; scrollbar-width: thin; padding-right: 40px; }
 textarea.show-scrollbar::-webkit-scrollbar { display: block; width: 6px; }
@@ -109,7 +111,7 @@ textarea.show-scrollbar::-webkit-scrollbar-thumb { background: rgba(134, 134, 13
 textarea::-webkit-scrollbar { display: none; }
 
 /* 全屏放大按钮样式 (文字超长时自动浮现) */
-.expand-input-btn { position: absolute; top: 16px; right: 75px; background: var(--bg-container); border: 1px solid var(--border-color); color: var(--text-secondary); cursor: pointer; width: 32px; height: 32px; border-radius: 8px; opacity: 0; pointer-events: none; transition: 0.2s; display: flex; align-items: center; justify-content: center; z-index: 10; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+.expand-input-btn { position: absolute; top: 16px; right: 20px; background: var(--bg-container); border: 1px solid var(--border-color); color: var(--text-secondary); cursor: pointer; width: 32px; height: 32px; border-radius: 8px; opacity: 0; pointer-events: none; transition: 0.2s; display: flex; align-items: center; justify-content: center; z-index: 10; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
 textarea.show-scrollbar ~ .expand-input-btn { opacity: 1; pointer-events: auto; }
 .expand-input-btn:hover { background: var(--bg-hover); color: var(--text-main); transform: scale(1.05); }
 body.dark-theme .expand-input-btn { background: rgba(30, 30, 40, 0.8); border-color: rgba(255, 255, 255, 0.1); backdrop-filter: blur(10px); }
