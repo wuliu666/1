@@ -2067,11 +2067,17 @@ forceLogout = function(alertMsg) {
         document.getElementById('mobileOverlay')?.classList.remove('show'); 
     }
 };
-// ======= 输入框动态高度与滚动边界逻辑 =======
+// ======= 输入框动态高度、全屏控制与滚动边界 =======
 const chatInputBox = document.getElementById('userInput');
+const fullscreenBtn = document.querySelector('.expand-input-btn');
+const inputSection = document.getElementById('inputSection');
+const fsOverlay = document.getElementById('inputFullscreenOverlay');
+
 if (chatInputBox) {
     chatInputBox.addEventListener('input', function() {
-        // 使用 auto 才能平滑计算真实高度，彻底告别闪烁跳动
+        // 全屏模式下不要重算高度，让 CSS 接管
+        if (inputSection && inputSection.classList.contains('fullscreen-mode')) return;
+        
         this.style.height = 'auto'; 
         const newHeight = this.scrollHeight;
         
@@ -2088,6 +2094,35 @@ if (chatInputBox) {
     });
 }
 
+// 🚀 核心全屏动画逻辑
+if (fullscreenBtn && inputSection && fsOverlay) {
+    fullscreenBtn.addEventListener('click', function() {
+        const isFullscreen = inputSection.classList.toggle('fullscreen-mode');
+        
+        if (isFullscreen) {
+            fsOverlay.classList.add('show');
+            // 切换为向内缩小的图标
+            this.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/></svg>';
+            this.title = "退出全屏编辑";
+            chatInputBox.style.height = '100%';
+        } else {
+            fsOverlay.classList.remove('show');
+            // 切换回展开图标
+            this.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>';
+            this.title = "全屏展开编辑";
+            
+            // 恢复初始高度计算
+            chatInputBox.style.height = 'auto';
+            chatInputBox.style.height = Math.min(chatInputBox.scrollHeight, 300) + 'px';
+        }
+    });
+
+    // 点击黑色遮罩也可以退出全屏
+    fsOverlay.addEventListener('click', function() {
+        fullscreenBtn.click();
+    });
+}
+
 // 给发送按钮增加点击后输入框回缩逻辑
 const realSendBtn = document.querySelector('.desktop-send');
 if (realSendBtn) {
@@ -2096,6 +2131,9 @@ if (realSendBtn) {
             setTimeout(() => {
                 chatInputBox.style.height = '60px';
                 chatInputBox.classList.remove('show-scrollbar');
+                if (inputSection.classList.contains('fullscreen-mode')) {
+                    fullscreenBtn.click(); // 发送后自动退出全屏
+                }
             }, 50);
         }
     });
