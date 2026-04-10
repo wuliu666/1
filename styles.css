@@ -111,17 +111,22 @@ textarea.show-scrollbar::-webkit-scrollbar-track { background: transparent; }
 textarea.show-scrollbar::-webkit-scrollbar-thumb { background: rgba(134, 134, 139, 0.3); border-radius: 10px; }
 textarea::-webkit-scrollbar { display: none; }
 
-/* 全屏放大按钮样式 (文字超长时自动浮现) */
-.expand-input-btn { position: absolute; top: 16px; right: 24px; background: var(--bg-container); border: 1px solid var(--border-color); color: var(--text-secondary); cursor: pointer; width: 32px; height: 32px; border-radius: 8px; opacity: 0; pointer-events: none; transition: 0.2s; display: flex; align-items: center; justify-content: center; z-index: 10; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+/* 全屏放大按钮样式 (完全复刻 Gemini 无边框极简风格) */
+.expand-input-btn { position: absolute; top: 12px; right: 38px; background: transparent; border: none; color: var(--text-secondary); cursor: pointer; width: 36px; height: 36px; border-radius: 50%; opacity: 0; pointer-events: none; transition: background 0.2s, color 0.2s, transform 0.2s; display: flex; align-items: center; justify-content: center; z-index: 10; box-shadow: none; padding: 0; }
 textarea.show-scrollbar ~ .expand-input-btn { opacity: 1; pointer-events: auto; }
+.expand-input-btn svg { width: 20px; height: 20px; }
 .expand-input-btn:hover { background: var(--bg-hover); color: var(--text-main); transform: scale(1.05); }
-body.dark-theme .expand-input-btn { background: rgba(30, 30, 40, 0.8); border-color: rgba(255, 255, 255, 0.1); backdrop-filter: blur(10px); }
+body.dark-theme .expand-input-btn { background: transparent; border: none; box-shadow: none; color: var(--text-secondary); }
+body.dark-theme .expand-input-btn:hover { background: rgba(255, 255, 255, 0.1); color: var(--text-main); }
 
-/* 🚀 沉浸式全屏输入模式 */
-.input-section.fullscreen-mode { position: fixed; top: 8vh; bottom: 8vh; left: 10vw; right: 10vw; width: auto; max-width: none; height: 84vh; z-index: 2000; border-radius: 24px; box-shadow: 0 30px 80px rgba(0,0,0,0.4); display: flex; flex-direction: column; background: var(--bg-container); }
+/* 🚀 沉浸式全屏输入模式 (参考 Gemini 视觉效果) */
+.input-section.fullscreen-mode { position: fixed; top: 6vh; bottom: 6vh; left: 12vw; right: 12vw; width: auto; max-width: none; height: 88vh; z-index: 2000; border-radius: 24px; box-shadow: 0 24px 80px rgba(0,0,0,0.5); display: flex; flex-direction: column; background: var(--bg-container); padding: 24px 32px; }
 body.dark-theme .input-section.fullscreen-mode { background: #1c1c1e; }
-.input-section.fullscreen-mode textarea { flex: 1; height: 100% !important; max-height: none; font-size: 1.15rem; }
-.input-section.fullscreen-mode .expand-input-btn { opacity: 1; pointer-events: auto; }
+.input-section.fullscreen-mode textarea { flex: 1; height: 100% !important; max-height: none; font-size: 1.15rem; margin-top: 10px; margin-bottom: 20px; line-height: 1.8; }
+.input-section.fullscreen-mode .expand-input-btn { opacity: 1; pointer-events: auto; top: 24px; right: 32px; width: 44px; height: 44px; border-radius: 50%; background: transparent; border: none; box-shadow: none; color: var(--text-secondary); }
+.input-section.fullscreen-mode .expand-input-btn svg { width: 24px; height: 24px; }
+.input-section.fullscreen-mode .expand-input-btn:hover { background: var(--bg-hover); color: var(--text-main); transform: scale(1.05); }
+.input-section.fullscreen-mode .input-tools-row { margin-top: auto; padding-top: 16px; border-top: 1px solid var(--border-color); }
 .fullscreen-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); z-index: 1999; display: none; opacity: 0; transition: 0.3s; }
 .fullscreen-overlay.show { display: block; opacity: 1; }
 .input-tools-row { display: flex; flex-direction: column; gap: 8px; flex-shrink: 0; }
