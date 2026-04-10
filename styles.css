@@ -329,7 +329,27 @@ body.dark-theme .composer-box:focus-within {
     border-style: dashed; 
 }
 
-/* 强制消除文本框的一切背景、边框，彻底解决“框里套框” */
+/* 🚀 核心修复1：智能判断如果 composer-box 被套在 input-section 里，则自动剥离它的外壳，解决“框里套框” */
+.input-section .composer-box {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    min-height: auto !important;
+}
+
+/* 🚀 核心修复2：强行剥离包裹在文本框外层多余的 div 边框和背景 */
+.composer-box > div:not(.img-gen-panel):not(.bulk-toolbar) {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+/* 强制消除文本框自身的一切背景、边框 */
 .img-gen-textarea { 
     width: calc(100% - 48px); 
     padding: 8px 10px; 

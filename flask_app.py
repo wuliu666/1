@@ -29,7 +29,7 @@ else:
 limiter = Limiter(
     get_remote_address,
     app=app,
-    default_limits=["200 per day", "50 per hour"],
+    default_limits=["5000 per day", "1000 per hour"], # ⚠️ 提高全局限制，防止正常的高频对话和心跳检测被误杀
     storage_uri="memory://"
 )
 
@@ -375,6 +375,7 @@ def check_auth_global():
 # =====================================================================
 
 @app.route('/api/heartbeat', methods=['POST'])
+@limiter.exempt # ⚠️ 必须豁免心跳接口的频率限制，否则每8秒一次的请求会瞬间耗尽用户的全部额度
 def heartbeat():
     data = request.json
     user_key = data.get('user_key')
@@ -397,7 +398,7 @@ def heartbeat():
     return jsonify({"valid": False})
 
 @app.route('/verify', methods=['POST'])
-@limiter.limit("5 per minute")
+@limiter.limit("30 per minute") # ⚠️ 放宽验证限制，允许用户正常多次刷新网页
 def verify():
     pwd = request.json.get('user_key')
     session_token = request.json.get('session_token')

@@ -138,39 +138,52 @@
             </div>
         </div>
         
-        <div id="aiImageWarningBanner" style="background: rgba(0, 122, 255, 0.08); border: 1px solid rgba(0, 122, 255, 0.2); border-radius: 12px; padding: 12px 16px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; color: var(--shen-color); font-size: 0.85rem; animation: pop 0.3s ease;">
+        <div id="aiImageWarningBanner" style="display: none; position: absolute; bottom: 100%; left: 0; width: 100%; margin: 0 0 12px 0; background: rgba(255, 149, 0, 0.1); border: 1px solid rgba(255, 149, 0, 0.3); border-radius: 8px; padding: 12px 16px; justify-content: space-between; align-items: center; color: #ff9500; font-size: 0.9rem; animation: pop 0.3s ease; box-sizing: border-box; z-index: 20; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);">
             <div style="display: flex; align-items: center; gap: 8px;">
-                <span style="font-size: 1.2rem;">💡</span>
-                <span><strong>温馨提示：</strong> 为节约资源，AI 生成的临时图片仅在云端保留 24 小时。如需永久保留，请及时点击图片下方的 <strong>“保存至素材库”</strong>。</span>
+                <span>⚠️ <strong>温馨提示：</strong> 为节约云端资源，临时图片仅保留 24 小时。如需永久保留，请及时点击 <strong>“保存至素材库”</strong>。</span>
             </div>
-            <button onclick="this.parentElement.style.display='none'" style="background: transparent; border: none; color: var(--shen-color); font-size: 1.5rem; cursor: pointer; padding: 0 5px; line-height: 1; transition: 0.2s;" onmouseover="this.style.transform='scale(1.2)'" onmouseout="this.style.transform='scale(1)'" title="关闭提醒">×</button>
+            <button onclick="this.parentElement.style.display='none'; sessionStorage.setItem('aiWarningDismissed', 'true');" style="background: transparent; border: none; color: #ff9500; font-size: 1.5rem; cursor: pointer; padding: 0 5px; line-height: 1; transition: 0.2s;" onmouseover="this.style.transform='scale(1.2)'" onmouseout="this.style.transform='scale(1)'" title="关闭后本次访问不再提醒">×</button>
         </div>
+        
+        <script>
+            if (sessionStorage.getItem('aiWarningDismissed') !== 'true') {
+                document.getElementById('aiImageWarningBanner').style.display = 'flex';
+            }
+        </script>
 
-        <div class="composer-box" id="composerBox" ondragover="event.preventDefault(); this.classList.add('drag-over');" ondragleave="this.classList.remove('drag-over');" ondrop="event.preventDefault(); this.classList.remove('drag-over'); handleComposerDrop(event);">
-            
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                <div style="display: flex; gap: 8px; align-items: center;">
-                    <select id="imgGenModelSelect" class="inline-model-select" style="height: 32px; padding: 0 8px; border: none; background: rgba(128,128,128,0.1); font-weight: bold; border-radius: 8px;" title="选择用于生成图像的底层 AI 模型"></select>
-                    <button id="imgGenSettingsToggle" class="settings-toggle-btn" style="height: 32px; border: none; background: rgba(128,128,128,0.1); padding: 0 10px; border-radius: 8px;" onclick="toggleImgGenSettings()" title="展开或收起高级分辨率与比例设置面板">
-                        <div class="ratio-icon r-16-9" id="toggleRatioIcon" style="margin-bottom: 0; width: 14px; height: 8px; border-width: 1px;"></div>
-                        <span id="toggleRatioText" style="font-size: 0.8rem;">16:9</span><span class="divider" style="margin: 0 4px;">|</span><span id="toggleResText" style="font-size: 0.8rem;">高清 2K</span>
-                    </button>
-                </div>
-                <button class="composer-clear-btn" onclick="clearComposer()" title="一键清空提示词与垫图">✖</button>
-            </div>
+        <div <div class="composer-box" id="composerBox" ondragover="event.preventDefault(); this.classList.add('drag-over');" ondragleave="this.classList.remove('drag-over');" ondrop="event.preventDefault(); this.classList.remove('drag-over'); handleComposerDrop(event);">
 
             <div id="imgUploadPreviewContainer" style="display: flex; align-items: flex-end; gap: 12px; margin-bottom: 4px;">
                 <div id="imgUploadPreview" style="display: none;"></div>
             </div>
 
-            <div style="display: flex; align-items: flex-end; gap: 8px;">
-                <label class="img-upload-label" style="width: 36px; height: 36px; font-size: 1.1rem; border: none; background: rgba(128,128,128,0.1); border-radius: 8px; margin-bottom: 2px;" title="点击上传垫图 (支持多选，最多10张，也可直接拖拽)">📷
-                <input type="file" id="imgGenUpload" accept="image/jpeg, image/png, image/webp" multiple style="display:none;" onchange="previewGenImage(this)">
-                 </label>
-                <textarea id="imgGenInput" class="img-gen-textarea" placeholder="详细描述画面内容，或将参考图直接拖拽到此处上传..." oninput="autoResizeTextarea(this)"></textarea>
-                <button class="send-btn desktop-send" style="width: 36px; height: 36px; font-size: 1.1rem; margin-bottom: 2px;" onclick="sendImageGenMessage()">↑</button>
-                <span class="mobile-send-btn" onclick="sendImageGenMessage()" style="font-size: 1.4rem; margin-left: 8px; margin-bottom: 4px; color: var(--bg-user-msg); cursor: pointer;">⬆️</span>
+            <textarea id="imgGenInput" class="img-gen-textarea" style="width: 100% !important; margin: 4px 0 12px 0; padding: 0; min-height: 48px;" placeholder="详细描述画面内容，或将参考图直接拖拽到此处上传..." oninput="autoResizeTextarea(this)"></textarea>
+
+            <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+
+                <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                    <label class="img-upload-label" style="width: 36px; height: 36px; font-size: 1.2rem; border: none; background: transparent; color: var(--text-secondary); border-radius: 50%; cursor: pointer; transition: 0.2s; display: flex; align-items: center; justify-content: center; margin: 0;" onmouseover="this.style.background='rgba(128,128,128,0.1)'; this.style.color='var(--text-main)'" onmouseout="this.style.background='transparent'; this.style.color='var(--text-secondary)'" title="点击上传垫图 (支持多选，最多10张，也可直接拖拽)">
+                        ➕
+                        <input type="file" id="imgGenUpload" accept="image/jpeg, image/png, image/webp" multiple style="display:none;" onchange="previewGenImage(this)">
+                    </label>
+
+                    <select id="imgGenModelSelect" class="inline-model-select" style="height: 32px; padding: 0 8px; border: none; background: rgba(128,128,128,0.1); font-weight: bold; border-radius: 8px;" title="选择用于生成图像的底层 AI 模型"></select>
+
+                    <button id="imgGenSettingsToggle" class="settings-toggle-btn" style="height: 32px; border: none; background: rgba(128,128,128,0.1); padding: 0 10px; border-radius: 8px;" onclick="toggleImgGenSettings()">
+                        <div class="ratio-icon r-16-9" id="toggleRatioIcon" style="margin-bottom: 0; width: 14px; height: 8px; border-width: 1px;"></div>
+                        <span id="toggleRatioText" style="font-size: 0.8rem;">16:9</span><span class="divider" style="margin: 0 4px;">|</span><span id="toggleResText" style="font-size: 0.8rem;">高清 2K</span>
+                    </button>
+                </div>
+
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <button class="composer-clear-btn" onclick="clearComposer()" title="一键清空提示词与垫图">✖</button>
+
+                    <button class="send-btn desktop-send" style="width: 38px; height: 38px; font-size: 1.2rem; margin: 0; display: flex; align-items: center; justify-content: center;" onclick="sendImageGenMessage()">↑</button>
+                    <span class="mobile-send-btn" onclick="sendImageGenMessage()" style="font-size: 1.4rem; color: var(--bg-user-msg); cursor: pointer; margin: 0;">⬆️</span>
+                </div>
+
             </div>
+
         </div>
     </div>
 
