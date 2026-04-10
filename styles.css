@@ -24,11 +24,18 @@ body.dark-theme {
     background-image: radial-gradient(circle at top right, rgba(94, 92, 230, 0.15), transparent 45%), radial-gradient(circle at bottom left, rgba(10, 132, 255, 0.1), transparent 45%);
 }
 
-/* 🌟 全局滚动条美化 */
-::-webkit-scrollbar { width: 6px; height: 6px; }
+/* 🌟 全局滚动条美化 (Mac 高级悬浮胶囊质感) */
+::-webkit-scrollbar { width: 14px; height: 14px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(134, 134, 139, 0.3); border-radius: 10px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(134, 134, 139, 0.6); }
+::-webkit-scrollbar-thumb { 
+    background-color: rgba(134, 134, 139, 0.35); 
+    border-radius: 100px; 
+    border: 4px solid transparent; /* 利用透明边框挤压背景，形成悬浮不贴边的视觉感 */
+    background-clip: padding-box; 
+}
+::-webkit-scrollbar-thumb:hover { background-color: rgba(134, 134, 139, 0.6); border-width: 3px; }
+body.dark-theme ::-webkit-scrollbar-thumb { background-color: rgba(255, 255, 255, 0.2); }
+body.dark-theme ::-webkit-scrollbar-thumb:hover { background-color: rgba(255, 255, 255, 0.35); }
 
 @keyframes slideUpFade {
     from { opacity: 0; transform: translateY(12px); }
@@ -103,14 +110,18 @@ body.dark-theme .bot-msg .msg-actions { border-top-color: rgba(255, 255, 255, 0.
 .input-section:focus-within { border-color: rgba(0, 122, 255, 0.4); box-shadow: 0 12px 35px rgba(0,0,0,0.08), 0 0 0 3px rgba(0, 122, 255, 0.1); }
 body.dark-theme .input-section:focus-within { border-color: rgba(94, 92, 230, 0.6); box-shadow: 0 12px 35px rgba(0,0,0,0.4), 0 0 0 3px rgba(94, 92, 230, 0.15); }
 body.dark-theme .input-section { border: 1px solid rgba(255,255,255,0.1); background: rgba(28, 28, 30, 0.75); box-shadow: 0 10px 30px rgba(0,0,0,0.3), 0 1px 3px rgba(0,0,0,0.1); }
-textarea { width: 100%; padding: 8px 10px; border-radius: 12px; border: none; background: transparent; color: var(--text-main); resize: none; outline: none; height: 60px; min-height: 60px; max-height: 300px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 1.05rem; box-sizing: border-box; transition: height 0.2s; line-height: 1.6; scrollbar-width: none; overflow-y: hidden; margin-bottom: 4px; }
+/* 1. 彻底修复重叠：宽度收缩，为右侧全屏按钮留出 40px 独立空间 */
+textarea { width: calc(100% - 40px); padding: 8px 10px; border-radius: 12px; border: none; background: transparent; color: var(--text-main); resize: none; outline: none; height: 60px; min-height: 60px; max-height: 300px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 1.05rem; box-sizing: border-box; transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1); line-height: 1.6; scrollbar-width: none; overflow-y: hidden; margin-bottom: 4px; }
 textarea:focus { box-shadow: none; border-color: transparent; }
-textarea.show-scrollbar { overflow-y: auto; scrollbar-width: thin; padding-right: 60px; }
-textarea.show-scrollbar::-webkit-scrollbar { display: block; width: 6px; }
-textarea.show-scrollbar::-webkit-scrollbar-track { background: transparent; }
-textarea.show-scrollbar::-webkit-scrollbar-thumb { background: rgba(134, 134, 139, 0.3); border-radius: 10px; }
-textarea::-webkit-scrollbar { display: none; }
 
+/* 2. 优化滚动条：Mac 悬浮胶囊质感，且向左偏移 10px 彻底避开按钮 */
+textarea.show-scrollbar { overflow-y: auto; scrollbar-width: thin; padding-right: 10px; }
+textarea.show-scrollbar::-webkit-scrollbar { display: block; width: 12px; }
+textarea.show-scrollbar::-webkit-scrollbar-track { background: transparent; }
+textarea.show-scrollbar::-webkit-scrollbar-thumb { background-color: rgba(134, 134, 139, 0.3); border-radius: 100px; border: 3px solid transparent; background-clip: padding-box; }
+textarea.show-scrollbar::-webkit-scrollbar-thumb:hover { background-color: rgba(134, 134, 139, 0.5); border-width: 2px; }
+body.dark-theme textarea.show-scrollbar::-webkit-scrollbar-thumb { background-color: rgba(255, 255, 255, 0.2); }
+textarea::-webkit-scrollbar { display: none; }
 /* 全屏放大按钮样式 (完全复刻 Gemini 无边框极简风格) */
 .expand-input-btn { position: absolute; top: 12px; right: 38px; background: transparent; border: none; color: var(--text-secondary); cursor: pointer; width: 36px; height: 36px; border-radius: 50%; opacity: 0; pointer-events: none; transition: background 0.2s, color 0.2s, transform 0.2s; display: flex; align-items: center; justify-content: center; z-index: 10; box-shadow: none; padding: 0; }
 textarea.show-scrollbar ~ .expand-input-btn { opacity: 1; pointer-events: auto; }
@@ -119,15 +130,63 @@ textarea.show-scrollbar ~ .expand-input-btn { opacity: 1; pointer-events: auto; 
 body.dark-theme .expand-input-btn { background: transparent; border: none; box-shadow: none; color: var(--text-secondary); }
 body.dark-theme .expand-input-btn:hover { background: rgba(255, 255, 255, 0.1); color: var(--text-main); }
 
-/* 🚀 沉浸式全屏输入模式 (参考 Gemini 视觉效果) */
-.input-section.fullscreen-mode { position: fixed; top: 6vh; bottom: 6vh; left: 12vw; right: 12vw; width: auto; max-width: none; height: 88vh; z-index: 2000; border-radius: 24px; box-shadow: 0 24px 80px rgba(0,0,0,0.5); display: flex; flex-direction: column; background: var(--bg-container); padding: 24px 32px; }
-body.dark-theme .input-section.fullscreen-mode { background: #1c1c1e; }
-.input-section.fullscreen-mode textarea { flex: 1; height: 100% !important; max-height: none; font-size: 1.15rem; margin-top: 10px; margin-bottom: 20px; line-height: 1.8; }
-.input-section.fullscreen-mode .expand-input-btn { opacity: 1; pointer-events: auto; top: 24px; right: 32px; width: 44px; height: 44px; border-radius: 50%; background: transparent; border: none; box-shadow: none; color: var(--text-secondary); }
-.input-section.fullscreen-mode .expand-input-btn svg { width: 24px; height: 24px; }
-.input-section.fullscreen-mode .expand-input-btn:hover { background: var(--bg-hover); color: var(--text-main); transform: scale(1.05); }
-.input-section.fullscreen-mode .input-tools-row { margin-top: auto; padding-top: 16px; border-top: 1px solid var(--border-color); }
-.fullscreen-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); z-index: 1999; display: none; opacity: 0; transition: 0.3s; }
+/* 🚀 沉浸式全屏输入模式 (自带物理向上推力动画，无背景模糊) */
+.input-section {
+    /* 给浏览器一个高度计算的基准点，解决 auto 高度无法触发过渡动画的问题 */
+    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    max-height: 400px;
+    min-height: 0;
+}
+
+.input-section.fullscreen-mode {
+    /* 利用 min-height 和 translateY 双管齐下，实现丝滑的向上推开感 */
+    max-height: 85vh; 
+    min-height: 75vh;
+    z-index: 100;
+    box-shadow: 0 -15px 50px rgba(0,0,0,0.08); /* 加强向上浮动的立体阴影 */
+    transform: translateY(-2vh); /* 配合上移效果，产生物理动感 */
+}
+body.dark-theme .input-section.fullscreen-mode {
+    box-shadow: 0 -15px 50px rgba(0,0,0,0.6);
+}
+
+.input-section.fullscreen-mode textarea {
+    flex: 1;
+    min-height: 60vh !important; /* 内部文本框平滑同步撑开 */
+    max-height: 70vh !important;
+    font-size: 1.15rem;
+    margin-top: 4px;
+    margin-bottom: 12px;
+    line-height: 1.8;
+}
+
+.input-section.fullscreen-mode .expand-input-btn {
+    opacity: 1;
+    pointer-events: auto;
+}
+.input-section.fullscreen-mode .expand-input-btn svg {
+    /* 展开状态下将图标旋转 180 度，示意这是“收起”按钮 */
+    transform: rotate(180deg);
+    transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.input-section.fullscreen-mode .input-tools-row { 
+    margin-top: auto; 
+    padding-top: 16px; 
+    border-top: 1px solid var(--border-color); 
+}
+
+/* 彻底剥离全屏遮罩的暗黑、模糊效果，鼠标穿透，保持与背后对话记录的沉浸感 */
+.fullscreen-overlay { 
+    position: fixed; inset: 0; 
+    background: transparent; 
+    backdrop-filter: none; 
+    -webkit-backdrop-filter: none; 
+    z-index: 90; 
+    display: none; 
+    opacity: 0; 
+    pointer-events: none; /* 让鼠标可以直接穿透操作底部的聊天记录 */
+}
 .fullscreen-overlay.show { display: block; opacity: 1; }
 .input-tools-row { display: flex; flex-direction: column; gap: 8px; flex-shrink: 0; }
 .mobile-only-tools { display: none; }
