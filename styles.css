@@ -24,18 +24,16 @@ body.dark-theme {
     background-image: radial-gradient(circle at top right, rgba(94, 92, 230, 0.15), transparent 45%), radial-gradient(circle at bottom left, rgba(10, 132, 255, 0.1), transparent 45%);
 }
 
-/* 🌟 全局滚动条美化 (Mac 高级悬浮胶囊质感) */
-::-webkit-scrollbar { width: 14px; height: 14px; }
+/* 🌟 全局滚动条美化 (符合整体风格的细长科技感) */
+::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { 
-    background-color: rgba(134, 134, 139, 0.35); 
-    border-radius: 100px; 
-    border: 4px solid transparent; /* 利用透明边框挤压背景，形成悬浮不贴边的视觉感 */
-    background-clip: padding-box; 
+    background-color: rgba(134, 134, 139, 0.25); 
+    border-radius: 8px; 
 }
-::-webkit-scrollbar-thumb:hover { background-color: rgba(134, 134, 139, 0.6); border-width: 3px; }
-body.dark-theme ::-webkit-scrollbar-thumb { background-color: rgba(255, 255, 255, 0.2); }
-body.dark-theme ::-webkit-scrollbar-thumb:hover { background-color: rgba(255, 255, 255, 0.35); }
+::-webkit-scrollbar-thumb:hover { background-color: rgba(0, 122, 255, 0.5); }
+body.dark-theme ::-webkit-scrollbar-thumb { background-color: rgba(255, 255, 255, 0.15); }
+body.dark-theme ::-webkit-scrollbar-thumb:hover { background-color: rgba(94, 92, 230, 0.5); }
 
 @keyframes slideUpFade {
     from { opacity: 0; transform: translateY(12px); }
@@ -110,21 +108,24 @@ body.dark-theme .bot-msg .msg-actions { border-top-color: rgba(255, 255, 255, 0.
 .input-section:focus-within { border-color: rgba(0, 122, 255, 0.4); box-shadow: 0 12px 35px rgba(0,0,0,0.08), 0 0 0 3px rgba(0, 122, 255, 0.1); }
 body.dark-theme .input-section:focus-within { border-color: rgba(94, 92, 230, 0.6); box-shadow: 0 12px 35px rgba(0,0,0,0.4), 0 0 0 3px rgba(94, 92, 230, 0.15); }
 body.dark-theme .input-section { border: 1px solid rgba(255,255,255,0.1); background: rgba(28, 28, 30, 0.75); box-shadow: 0 10px 30px rgba(0,0,0,0.3), 0 1px 3px rgba(0,0,0,0.1); }
-textarea { width: 100%; padding: 8px 10px; border-radius: 12px; border: none; background: transparent; color: var(--text-main); resize: none; outline: none; height: 60px; min-height: 60px; max-height: 300px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 1.05rem; box-sizing: border-box; transition: height 0.2s; line-height: 1.6; scrollbar-width: none; overflow-y: hidden; margin-bottom: 4px; }
+textarea { width: 100%; padding: 8px 10px; border-radius: 12px; border: none; background: transparent; color: var(--text-main); resize: none; outline: none; height: 60px; min-height: 60px; max-height: 300px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 1.05rem; box-sizing: border-box; transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1); line-height: 1.6; scrollbar-width: none; overflow-y: hidden; margin-bottom: 4px; }
 textarea:focus { box-shadow: none; border-color: transparent; }
-textarea.show-scrollbar { overflow-y: auto; scrollbar-width: thin; padding-right: 60px; }
+textarea.show-scrollbar { overflow-y: auto; scrollbar-width: thin; padding-right: 70px; }
 textarea.show-scrollbar::-webkit-scrollbar { display: block; width: 6px; }
 textarea.show-scrollbar::-webkit-scrollbar-track { background: transparent; }
-textarea.show-scrollbar::-webkit-scrollbar-thumb { background: rgba(134, 134, 139, 0.3); border-radius: 10px; }
+textarea.show-scrollbar::-webkit-scrollbar-thumb { background: rgba(134, 134, 139, 0.25); border-radius: 6px; }
+textarea.show-scrollbar::-webkit-scrollbar-thumb:hover { background-color: rgba(0, 122, 255, 0.5); }
+body.dark-theme textarea.show-scrollbar::-webkit-scrollbar-thumb { background-color: rgba(255, 255, 255, 0.15); }
+body.dark-theme textarea.show-scrollbar::-webkit-scrollbar-thumb:hover { background-color: rgba(94, 92, 230, 0.5); }
 textarea::-webkit-scrollbar { display: none; }
 
-/* 全屏放大按钮样式 (完全复刻 Gemini 无边框极简风格) */
-.expand-input-btn { position: absolute; top: 12px; right: 38px; background: transparent; border: none; color: var(--text-secondary); cursor: pointer; width: 36px; height: 36px; border-radius: 50%; opacity: 0; pointer-events: none; transition: background 0.2s, color 0.2s, transform 0.2s; display: flex; align-items: center; justify-content: center; z-index: 10; box-shadow: none; padding: 0; }
+/* 全屏放大按钮样式 (增加实体背景框隔离，彻底解决与滚动条重叠) */
+.expand-input-btn { position: absolute; top: 14px; right: 32px; background: var(--bg-container); border: 1px solid var(--border-color); color: var(--text-secondary); cursor: pointer; width: 32px; height: 32px; border-radius: 8px; opacity: 0; pointer-events: none; transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1); display: flex; align-items: center; justify-content: center; z-index: 10; box-shadow: 0 2px 6px rgba(0,0,0,0.05); padding: 0; }
 textarea.show-scrollbar ~ .expand-input-btn { opacity: 1; pointer-events: auto; }
-.expand-input-btn svg { width: 20px; height: 20px; }
+.expand-input-btn svg { width: 18px; height: 18px; }
 .expand-input-btn:hover { background: var(--bg-hover); color: var(--text-main); transform: scale(1.05); }
-body.dark-theme .expand-input-btn { background: transparent; border: none; box-shadow: none; color: var(--text-secondary); }
-body.dark-theme .expand-input-btn:hover { background: rgba(255, 255, 255, 0.1); color: var(--text-main); }
+body.dark-theme .expand-input-btn { background: rgba(40, 40, 45, 0.9); border-color: rgba(255, 255, 255, 0.1); box-shadow: 0 2px 8px rgba(0,0,0,0.3); color: var(--text-secondary); }
+body.dark-theme .expand-input-btn:hover { background: rgba(60, 60, 65, 1); color: var(--text-main); }
 
 /* 🚀 沉浸式全屏输入模式 (自带物理向上推力动画，无背景模糊) */
 .input-section {
