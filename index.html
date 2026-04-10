@@ -220,6 +220,15 @@
 <div class="modal-overlay" id="renameModal" style="display: none;"><div class="modal-box" style="max-width:320px; text-align: center;"><h3 style="margin-top: 0;">修改标题</h3><input type="text" id="renameInput" placeholder="请输入新标题" style="width:100%; padding:12px; border-radius:10px; border:1px solid var(--border-color); box-sizing:border-box; margin-bottom:20px;"><div style="display:flex; gap:10px;"><button class="modal-btn cancel-btn" style="flex:1" onclick="closeRenameModal()">取消</button><button class="modal-btn btn-confirm" style="flex:1" onclick="confirmRename()">保存</button></div></div></div>
 <div class="modal-overlay" id="confirmModal" style="display: none;"><div class="modal-box" style="max-width:320px; text-align: center;"><h3 style="margin-top: 0;">操作确认</h3><p style="color: var(--text-secondary); margin-bottom: 24px;">您确定要执行此操作吗？</p><div style="display:flex; gap:10px;"><button class="modal-btn cancel-btn" style="flex:1" onclick="closeConfirmModal()">取消</button><button class="modal-btn btn-confirm" style="flex:1; background: var(--danger-color);" onclick="executeConfirm()">确认</button></div></div></div>
 
+<div class="modal-overlay" id="errorModal" style="display: none;">
+    <div class="modal-box" style="max-width: 420px; text-align: center; border-top: 5px solid var(--danger-color);">
+        <div style="font-size: 3.5rem; margin-bottom: 10px; animation: pop 0.4s cubic-bezier(0.16, 1, 0.3, 1);">⚠️</div>
+        <h3 style="margin-top: 0; color: var(--danger-color); font-size: 1.3rem; margin-bottom: 16px;" id="errorModalTitle">云端拦截</h3>
+        <div id="errorModalContent" style="color: var(--text-secondary); margin-bottom: 24px; font-size: 0.95rem; line-height: 1.6; text-align: left; background: var(--bg-hover); padding: 16px; border-radius: 12px; border: 1px solid var(--border-color); word-break: break-word;"></div>
+        <button class="modal-btn btn-confirm" style="width: 100%; background: var(--bg-user-msg);" onclick="document.getElementById('errorModal').classList.remove('show')">我知道了</button>
+    </div>
+</div>
+
 <div class="modal-overlay" id="adminModal" style="display: none;">
     <div class="modal-box admin-modal-box">
         <div class="admin-tabs">

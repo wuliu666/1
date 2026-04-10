@@ -525,7 +525,7 @@ def upload_asset():
             config = CosConfig(Region=COS_REGION, SecretId=COS_SECRET_ID, SecretKey=COS_SECRET_KEY)
             client = CosS3Client(config)
             
-            # 1. 核心升级：直接将上传的文件流推送到 COS 的 team_assets 目录，绝不落地服务器硬盘！
+            # 1. 云端直传
             cos_filename = f"team_assets/{unique_id}{ext}"
             client.put_object(
                 Bucket=COS_BUCKET,
@@ -536,7 +536,6 @@ def upload_asset():
             )
             rel_path = f"https://{COS_BUCKET}.cos.{COS_REGION}.myqcloud.com/{cos_filename}"
             
-            # 2. 如果前端传了缩略图，一并推送到 COS
             if thumb_base64 and "," in thumb_base64:
                 try:
                     header, encoded = thumb_base64.split(",", 1)
@@ -551,12 +550,36 @@ def upload_asset():
                     )
                 except: pass
         except Exception as e:
-            print(f"团队素材上传 COS 失败，降级使用本地存储: {e}")
+            print(f"🚨 腾讯云 COS 上传异常: {e}")
+            # 如果是忘记安装依赖库，将报错抛给前端让用户直接看到
+            if "qcloud_cos" in str(e):
+                return jsonify({"error": "缺少腾讯云组件！请在控制台运行: pip install -U cos-python-sdk-v5"}), 500
+            return jsonify({"error": f"云端存储报错: {str(e)[:80]}"}), 500
     
-    # 🚀 强制纯云端存储引擎：彻底抛弃本地存储兜底，0 占用服务器硬盘空间！
-    # 只要没走通腾讯云 COS，直接拦截并报错
+    # 💡 核心修复：智能存储双引擎！恢复本地兜底功能。
+    # 如果 .env 中未配置 COS_SECRET_ID，自动降级保存到本地 static 目录，保证本地开发调试畅通无阻
     if not rel_path:
-        return jsonify({"error": "上传失败：系统已开启纯云端存储模式，请联系管理员在 .env 中正确配置腾讯云 COS"}), 500
+        file.seek(0) # 还原被读过的文件指针，否则存下来的图是 0 字节
+        sub_dir = 'team_assets' if library_mode == 'team' else 'personal_assets'
+        save_dir = os.path.join(ASSETS_DIR, sub_dir)
+        if not os.path.exists(save_dir): os.makedirs(save_dir)
+        
+        filename = f"{unique_id}{ext}"
+        file_path = os.path.join(save_dir, filename)
+        file.save(file_path)
+        rel_path = f"/static/assets/{sub_dir}/{filename}"
+        
+        # 本地存储的缩略图生成
+        if thumb_base64 and "," in thumb_base64:
+            try:
+                import base64
+                header, encoded = thumb_base64.split(",", 1)
+                thumb_data = base64.b64decode(encoded)
+                thumb_filename = f"{unique_id}_thumb.jpg"
+                thumb_path = os.path.join(save_dir, thumb_filename)
+                with open(thumb_path, "wb") as fh:
+                    fh.write(thumb_data)
+            except: pass
 
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()

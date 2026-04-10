@@ -821,24 +821,62 @@ async function generateThumbnail(file) {
 
 async function handleBatchAssetUpload(input) {
     if (!input.files || input.files.length === 0) return;
-    const files = Array.from(input.files); let upCount = 0; 
+    const files = Array.from(input.files); let upCount = 0; let failCount = 0; let lastError = "";
     const uploadBtn = document.getElementById('uploadNewAssetBtn'); if(uploadBtn) uploadBtn.disabled = true;
+    
+    showToast(`⏳ 正在向云端传输 ${files.length} 张图片，请稍候...`);
+    
     for (let file of files) { 
         const thumbData = await generateThumbnail(file);
         const formData = new FormData(); formData.append('file', file); formData.append('title', file.name.substring(0, file.name.lastIndexOf('.')) || file.name); formData.append('type', 'character'); formData.append('library_mode', currentLibraryMode); formData.append('user_key', currentUserKey); formData.append('thumb_base64', thumbData);
         try {
             const res = await fetch(`${API_BASE_URL}/api/upload_asset`, { method: 'POST', body: formData });
-            if(res.ok) {
-                const d = await res.json();
-                if(d.success) { d.asset.thumb = d.asset.image.replace(/(\.[^.]+)$/, '_thumb.jpg'); if (currentLibraryMode === 'team') teamAssets.unshift(d.asset); else personalAssets.unshift(d.asset); upCount++; }
+            const d = await res.json();
+            if(res.ok && d.success) { 
+                d.asset.thumb = d.asset.image.replace(/(\.[^.]+)$/, '_thumb.jpg'); 
+                if (currentLibraryMode === 'team') teamAssets.unshift(d.asset); 
+                else personalAssets.unshift(d.asset); 
+                upCount++; 
+            } else {
+                failCount++;
+                lastError = d.error || d.msg || "云端存储桶(COS)对接失败，后端拒绝写入";
             }
-        } catch(e) {}
+        } catch(e) {
+            failCount++;
+            lastError = "网络连接异常或后端 Python 服务崩溃";
+        }
     }
     
-    addAuditLog(`上传了 ${upCount} 张图片`); input.value = ''; if(uploadBtn) uploadBtn.disabled = false;
-    showToast("上传成功"); renderAssetGrid();
-}
+    input.value = ''; if(uploadBtn) uploadBtn.disabled = false;
 
+    // 💡 核心修复 1：强行清空屏幕上遗留的“正在传输...” Toast 提示，彻底解决遮挡重叠问题
+    document.querySelectorAll('.toast-msg').forEach(el => el.remove());
+    
+    if (upCount > 0) {
+        addAuditLog(`上传了 ${upCount} 张图片`); 
+        showToast(`✅ 成功入库 ${upCount} 张素材！`); 
+        renderAssetGrid();
+    }
+    if (failCount > 0) {
+        // 💡 核心修复 2：抛弃丑陋的原生 alert()，渲染具有呼吸动效和富文本排版的高级面板
+        const errModal = document.getElementById('errorModal');
+        if (errModal) {
+            document.getElementById('errorModalTitle').innerText = `上传异常拦截 (${failCount}张)`;
+            document.getElementById('errorModalContent').innerHTML = `
+                <div style="margin-bottom:10px;"><strong>📡 云端引擎返回错误：</strong><br>
+                <span style="color:var(--danger-color); font-family:monospace; font-size:0.9rem;">${lastError}</span></div>
+                <div style="border-top:1px dashed var(--border-color); padding-top:10px;">
+                <strong>🛠️ 开发者排查建议：</strong><br>
+                1. 如果配置了腾讯云 COS，请重点检查 <code style="background:rgba(0,0,0,0.05);padding:2px 6px;border-radius:4px;">.env</code> 中的参数，或者查看是否漏装了 <code style="background:rgba(0,0,0,0.05);padding:2px 6px;border-radius:4px;">cos-python-sdk-v5</code>。<br>
+                2. 详情请切回 Python 控制台 (黑框) 查看完整红色报错堆栈。
+                </div>
+            `;
+            errModal.classList.add('show');
+        } else {
+            alert(`❌ 上传失败：\n${lastError}`);
+        }
+    }
+}
 function filterAssets(type) {
     currentAssetFilter = type;
     if(currentChatId === TEAM_ASSET_ID || currentChatId === PERSONAL_ASSET_ID) {
@@ -869,8 +907,15 @@ function openFullImage(id) {
     const sourceArray = currentLibraryMode === 'team' ? teamAssets : personalAssets;
     const asset = sourceArray.find(a => a.id === id); if(!asset) return;
     const modal = document.getElementById('imageViewerModal'); const canvas = document.getElementById('fullViewCanvas'); const ctx = canvas.getContext('2d');
-    const img = new Image(); img.crossOrigin = "Anonymous"; 
+    const img = new Image(); 
+    // 同样移除大图查看器中的严格跨域限制
     img.onload = () => { canvas.width = img.width; canvas.height = img.height; ctx.drawImage(img, 0, 0); if (currentLibraryMode === 'team') { drawTeamWatermark(canvas, ctx); } modal.classList.add('show'); };
+    // 大图加载的 404 防御
+    img.onerror = () => {
+         if (img.src !== asset.image && !asset.image.startsWith('data:')) {
+             img.src = asset.image.startsWith('http') ? asset.image : API_BASE_URL + asset.image;
+         }
+    };
     // 💡 修复：本地 Blob 数据无需加服务器 API 前缀
     img.src = asset.image.startsWith('data:') || asset.image.startsWith('blob:') || asset.image.startsWith('http') ? asset.image : API_BASE_URL + asset.image;
 }
@@ -892,8 +937,15 @@ function renderAssetGrid() {
 
     filtered.forEach(asset => {
         const canvas = document.getElementById(`canvas_${asset.id}`); if(!canvas) return;
-        const ctx = canvas.getContext('2d'); const img = new Image(); img.crossOrigin = "Anonymous"; 
+        const ctx = canvas.getContext('2d'); const img = new Image(); 
+        // 移除跨域限制，防止本地环境被浏览器安全策略拦截
         img.onload = () => { canvas.width = img.width; canvas.height = img.height; ctx.drawImage(img, 0, 0); if (currentLibraryMode === 'team') { drawTeamWatermark(canvas, ctx); } };
+        // 增加 404 防御：如果缩略图加载失败，自动回退请求原图
+        img.onerror = () => {
+            if (img.src !== asset.image && !asset.image.startsWith('data:')) {
+                img.src = asset.image.startsWith('http') ? asset.image : API_BASE_URL + asset.image;
+            }
+        };
         // 💡 修复：确保正确的缩略图地址判定
         const imgSrc = asset.thumb || asset.image;
         img.src = imgSrc.startsWith('data:') || imgSrc.startsWith('blob:') || imgSrc.startsWith('http') ? imgSrc : API_BASE_URL + imgSrc;
