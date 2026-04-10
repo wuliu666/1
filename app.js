@@ -1613,7 +1613,7 @@ function renderMessages() {
         if (m.role === 'user' && isLongText) { contentWrapper.classList.add('text-collapsed'); }
 
         const contentDiv = document.createElement('div'); contentDiv.className = 'msg-content'; contentDiv.id = `msg-content-${index}`; 
-        if (m.isThinking) { contentDiv.innerHTML = `<div class="typing-indicator"><span></span><span></span><span></span><span class="typing-text">正在思考...</span></div>`; } 
+        if (m.isThinking) { contentDiv.innerHTML = `<div style="display: flex; align-items: center; gap: 5px; padding: 10px 0; pointer-events: none;"><div class="loader" style="margin: -35px -25px -35px -35px;"><svg width="100" height="100" viewBox="0 0 100 100"><defs><mask id="clipping"><polygon points="0,0 100,0 100,100 0,100" fill="black"></polygon><polygon points="25,25 75,25 50,75" fill="white"></polygon><polygon points="50,25 75,75 25,75" fill="white"></polygon><polygon points="35,35 65,35 50,65" fill="white"></polygon><polygon points="35,35 65,35 50,65" fill="white"></polygon><polygon points="35,35 65,35 50,65" fill="white"></polygon><polygon points="35,35 65,35 50,65" fill="white"></polygon></mask></defs></svg><div class="box"></div></div><span style="color: var(--text-secondary); font-size: 0.95rem; font-weight: 500;">正在思考...</span></div>`; }
         else if (m.isHTML) { contentDiv.innerHTML = m.content; } 
         else { contentDiv.innerHTML = formatText(m.content); }
         
