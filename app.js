@@ -1764,7 +1764,7 @@ async function sendMessage() {
     
     chat.messages.push({ role:'user', content:msg, timestamp: Date.now() });
     if(chat.title.includes("新") || chat.title.includes("未命名")) { chat.title = msg.substring(0,12); document.getElementById('headerTitle').innerText = chat.title; }
-    input.value = ''; 
+    input.value = ''; input.style.height = '60px'; input.classList.remove('show-scrollbar');
     const botMsgIndex = chat.messages.length; chat.messages.push({ role:'bot', content:'', timestamp: Date.now(), isThinking: true }); renderMessages();
     
     try {
@@ -2068,22 +2068,22 @@ forceLogout = function(alertMsg) {
     }
 };
 // ======= 输入框动态高度与滚动边界逻辑 =======
-const chatInputBox = document.querySelector('textarea');
+const chatInputBox = document.getElementById('userInput');
 if (chatInputBox) {
     chatInputBox.addEventListener('input', function() {
-        // 先重置高度，才能正确计算回退缩小的情况
-        this.style.height = '60px'; 
+        // 先重置高度为 auto，精确计算 scrollHeight
+        this.style.height = 'auto'; 
         const newHeight = this.scrollHeight;
         
-        // 根据输入内容动态撑开高度
-        if (newHeight > 60) {
-            this.style.height = newHeight + 'px';
-        }
-        
-        // 当高度达到最大限制 (200px) 时，触发滚动条和全屏按钮显示
-        if (newHeight >= 200) {
+        // 根据输入内容动态撑开高度，设置最小和最大范围
+        if (newHeight <= 60) {
+            this.style.height = '60px';
+            this.classList.remove('show-scrollbar');
+        } else if (newHeight >= 200) {
+            this.style.height = '200px';
             this.classList.add('show-scrollbar');
         } else {
+            this.style.height = newHeight + 'px';
             this.classList.remove('show-scrollbar');
         }
     });
