@@ -24,16 +24,25 @@ body.dark-theme {
     background-image: radial-gradient(circle at top right, rgba(94, 92, 230, 0.15), transparent 45%), radial-gradient(circle at bottom left, rgba(10, 132, 255, 0.1), transparent 45%);
 }
 
-/* 🌟 全局滚动条美化 (符合整体风格的细长科技感) */
+/* 🌟 全局滚动条美化 (精细科技感与暗黑沉浸适配) */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { 
     background-color: rgba(134, 134, 139, 0.25); 
     border-radius: 8px; 
+    border: 2px solid transparent; 
+    background-clip: padding-box; 
 }
-::-webkit-scrollbar-thumb:hover { background-color: rgba(0, 122, 255, 0.5); }
-body.dark-theme ::-webkit-scrollbar-thumb { background-color: rgba(255, 255, 255, 0.15); }
-body.dark-theme ::-webkit-scrollbar-thumb:hover { background-color: rgba(94, 92, 230, 0.5); }
+::-webkit-scrollbar-thumb:hover { background-color: rgba(0, 122, 255, 0.5); border-width: 0; }
+/* 🌙 暗黑模式下的滚动条：融入系统的紫蓝色氛围光 */
+body.dark-theme ::-webkit-scrollbar-thumb { 
+    background-color: rgba(94, 92, 230, 0.25); 
+}
+body.dark-theme ::-webkit-scrollbar-thumb:hover { 
+    background-color: rgba(94, 92, 230, 0.65); 
+    box-shadow: 0 0 8px rgba(94, 92, 230, 0.4);
+    border-width: 0; 
+}
 
 @keyframes slideUpFade {
     from { opacity: 0; transform: translateY(12px); }
@@ -115,8 +124,9 @@ textarea.show-scrollbar::-webkit-scrollbar { display: block; width: 6px; }
 textarea.show-scrollbar::-webkit-scrollbar-track { background: transparent; }
 textarea.show-scrollbar::-webkit-scrollbar-thumb { background: rgba(134, 134, 139, 0.25); border-radius: 6px; }
 textarea.show-scrollbar::-webkit-scrollbar-thumb:hover { background-color: rgba(0, 122, 255, 0.5); }
-body.dark-theme textarea.show-scrollbar::-webkit-scrollbar-thumb { background-color: rgba(255, 255, 255, 0.15); }
-body.dark-theme textarea.show-scrollbar::-webkit-scrollbar-thumb:hover { background-color: rgba(94, 92, 230, 0.5); }
+/* 🌙 暗黑模式下输入框的滚动条：更加低调且契合主色调 */
+body.dark-theme textarea.show-scrollbar::-webkit-scrollbar-thumb { background-color: rgba(94, 92, 230, 0.25); }
+body.dark-theme textarea.show-scrollbar::-webkit-scrollbar-thumb:hover { background-color: rgba(94, 92, 230, 0.65); }
 textarea::-webkit-scrollbar { display: none; }
 
 /* 全屏放大按钮样式 (增加实体背景框隔离，彻底解决与滚动条重叠) */
