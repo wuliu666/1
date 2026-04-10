@@ -54,6 +54,8 @@ body.dark-theme .sidebar { background: rgba(28, 28, 30, 0.85); border-right: 1px
 .sidebar-tabs { display: flex; background: var(--bg-input); padding: 4px; border-radius: 10px; margin-top: 10px; margin-bottom: 10px; }
 .tab-btn { flex: 1; text-align: center; padding: 6px 0; border-radius: 6px; cursor: pointer; font-size: 0.85rem; color: var(--text-secondary); border: none; background: transparent; transition: 0.2s; }
 .tab-btn.active { background: var(--bg-container); color: var(--text-main); box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+body.dark-theme .sidebar-tabs { background: rgba(0, 0, 0, 0.25); border: 1px solid rgba(255, 255, 255, 0.05); }
+body.dark-theme .tab-btn.active { background: rgba(255, 255, 255, 0.1); color: var(--text-main); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2); }
 .chat-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
 .chat-item { padding: 10px 12px; border-radius: 8px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: 0.2s; }
 .chat-item:hover, .chat-item.active { background: var(--bg-hover); }
@@ -98,10 +100,19 @@ body.dark-theme .bot-msg .msg-actions { border-top-color: rgba(255, 255, 255, 0.
 
 .input-section { margin: 0 auto 24px auto; max-width: 850px; width: 90%; padding: 12px 20px; display: flex; gap: 12px; border: 1px solid rgba(0,0,0,0.08); border-radius: 24px; align-items: center; transition: 0.3s; position: relative; background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); box-shadow: 0 10px 30px rgba(0,0,0,0.05), 0 1px 3px rgba(0,0,0,0.02); z-index: 5; }
 body.dark-theme .input-section { border: 1px solid rgba(255,255,255,0.1); background: rgba(28, 28, 30, 0.75); box-shadow: 0 10px 30px rgba(0,0,0,0.3), 0 1px 3px rgba(0,0,0,0.1); }
-textarea { flex: 1; padding: 14px 10px; border-radius: 12px; border: none; background: transparent; color: var(--text-main); resize: none; outline: none; height: 60px; min-height: 60px; max-height: 200px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 1.05rem; box-sizing: border-box; transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); line-height: 1.6; scrollbar-width: none; }
-textarea:focus { box-shadow: none; }
+textarea { flex: 1; padding: 14px 10px; border-radius: 12px; border: none; background: transparent; color: var(--text-main); resize: none; outline: none; height: 60px; min-height: 60px; max-height: 200px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 1.05rem; box-sizing: border-box; transition: background 0.3s, border 0.3s; line-height: 1.6; scrollbar-width: none; overflow-y: hidden; }
+textarea:focus { box-shadow: none; border-color: transparent; }
+textarea.show-scrollbar { overflow-y: auto; scrollbar-width: thin; padding-right: 40px; }
+textarea.show-scrollbar::-webkit-scrollbar { display: block; width: 6px; }
+textarea.show-scrollbar::-webkit-scrollbar-track { background: transparent; }
+textarea.show-scrollbar::-webkit-scrollbar-thumb { background: rgba(134, 134, 139, 0.3); border-radius: 10px; }
 textarea::-webkit-scrollbar { display: none; }
-textarea:focus { border-color: var(--bg-user-msg); box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1); }
+
+/* 全屏放大按钮样式 (文字超长时自动浮现) */
+.expand-input-btn { position: absolute; top: 22px; right: 75px; background: var(--bg-container); border: 1px solid var(--border-color); color: var(--text-secondary); cursor: pointer; width: 32px; height: 32px; border-radius: 8px; opacity: 0; pointer-events: none; transition: 0.2s; display: flex; align-items: center; justify-content: center; z-index: 10; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+textarea.show-scrollbar ~ .expand-input-btn { opacity: 1; pointer-events: auto; }
+.expand-input-btn:hover { background: var(--bg-hover); color: var(--text-main); transform: scale(1.05); }
+body.dark-theme .expand-input-btn { background: rgba(30, 30, 40, 0.8); border-color: rgba(255, 255, 255, 0.1); backdrop-filter: blur(10px); }
 .input-tools-row { display: flex; flex-direction: column; gap: 8px; flex-shrink: 0; }
 .mobile-only-tools { display: none; }
 .inline-model-select { padding: 0 10px; height: 44px; border-radius: 12px; border: 1px solid var(--border-color); background: var(--bg-input); color: var(--text-main); outline: none; cursor: pointer; font-size: 0.9rem; flex-shrink: 0; transition: 0.2s;}
@@ -502,3 +513,4 @@ strong { color: var(--text-main); font-weight: 700; }
 .round-theme-switch .icon svg {
   fill: currentColor !important;
 }
+

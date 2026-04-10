@@ -2067,7 +2067,27 @@ forceLogout = function(alertMsg) {
         document.getElementById('mobileOverlay')?.classList.remove('show'); 
     }
 };
-
+// ======= 输入框动态高度与滚动边界逻辑 =======
+const chatInputBox = document.querySelector('textarea');
+if (chatInputBox) {
+    chatInputBox.addEventListener('input', function() {
+        // 先重置高度，才能正确计算回退缩小的情况
+        this.style.height = '60px'; 
+        const newHeight = this.scrollHeight;
+        
+        // 根据输入内容动态撑开高度
+        if (newHeight > 60) {
+            this.style.height = newHeight + 'px';
+        }
+        
+        // 当高度达到最大限制 (200px) 时，触发滚动条和全屏按钮显示
+        if (newHeight >= 200) {
+            this.classList.add('show-scrollbar');
+        } else {
+            this.classList.remove('show-scrollbar');
+        }
+    });
+}
 // 重启一次引擎，应用最高权限
 setTimeout(() => { init(); }, 50);
 // ========================== 统一拦截引擎结束 ========================================
