@@ -1641,23 +1641,30 @@ function renderMessages() {
             const mainArea = document.createElement('div');
             mainArea.style.cssText = "flex: 1; display: flex; flex-direction: column; gap: 12px; min-width: 0;";
             
+            // 🔥 核心修复：增加一个绝对稳定的外层包裹，阻断浏览器 Flex 引擎对 img 计算时的重叠 Bug
+            const imgWrapper = document.createElement('div');
+            imgWrapper.style.cssText = "width: 100%; display: flex; justify-content: center; align-items: center; background: var(--bg-input); border-radius: 8px; border: 1px solid var(--border-color); box-shadow: 0 2px 10px rgba(0,0,0,0.05); overflow: hidden; flex-shrink: 0;";
+
             const mainImg = document.createElement('img');
             mainImg.id = `focus-main-${index}`;
             mainImg.src = m.images[0];
             mainImg.title = "点击查看安全无码大图";
-            mainImg.style.cssText = "width: 100%; border-radius: 8px; object-fit: contain; max-height: 550px; cursor: pointer; transition: opacity 0.2s ease-in-out; background: var(--bg-input); border: 1px solid var(--border-color); box-shadow: 0 2px 10px rgba(0,0,0,0.05);";
+            // 剥离外层样式，让图片纯粹自适应
+            mainImg.style.cssText = "width: 100%; height: auto; max-height: 550px; object-fit: contain; cursor: pointer; transition: opacity 0.2s ease-in-out; display: block;";
             mainImg.onclick = () => openFullImageFromBase64(mainImg.src);
+            
+            imgWrapper.appendChild(mainImg);
             
             // 底部高级控制操作面板
             const controls = document.createElement('div');
-            controls.style.cssText = "display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;";
+            controls.style.cssText = "display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; flex-shrink: 0;";
             controls.innerHTML = `
                 <button style="flex: 1; padding: 10px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-input); color: var(--text-main); cursor: pointer; font-weight: 500; transition: all 0.2s; white-space: nowrap;" onmouseover="this.style.backgroundColor='var(--bg-hover)'" onmouseout="this.style.backgroundColor='var(--bg-input)'" onclick="saveToPersonalLibrary(document.getElementById('focus-main-${index}').src, ${index})">💾 保存至素材库</button>
                 <button style="flex: 1.5; padding: 10px; border-radius: 8px; border: none; background: linear-gradient(135deg, #00C6ff, #0072ff); color: white; cursor: pointer; font-weight: bold; box-shadow: 0 4px 12px rgba(0, 114, 255, 0.25); white-space: nowrap; transition: all 0.2s;" onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 6px 16px rgba(0, 114, 255, 0.4)';" onmouseout="this.style.transform='none'; this.style.boxShadow='0 4px 12px rgba(0, 114, 255, 0.25)';" onclick="downloadSingleImage(document.getElementById('focus-main-${index}').src, 0)">⬇️ 下载当前原图</button>
                 <button style="flex: 1; padding: 10px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-input); color: var(--text-main); cursor: pointer; font-weight: 500; transition: all 0.2s; white-space: nowrap;" onmouseover="this.style.backgroundColor='var(--bg-hover)'" onmouseout="this.style.backgroundColor='var(--bg-input)'" onclick="downloadGalleryZip(${index})">📦 打包全部 (ZIP)</button>
             `;
             
-            mainArea.appendChild(mainImg);
+            mainArea.appendChild(imgWrapper);
             mainArea.appendChild(controls);
             galleryDiv.appendChild(mainArea);
 

@@ -464,13 +464,88 @@ body.dark-theme .gallery-item:hover { box-shadow: 0 12px 30px rgba(0,0,0,0.6); }
 .img-preview-close:hover { transform: scale(1.2); }
 
 .bulk-toolbar { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--bg-container); border: 1px solid var(--border-color); border-radius: 30px; padding: 12px 24px; box-shadow: 0 10px 40px rgba(0,0,0,0.15); align-items: center; justify-content: space-between; gap: 24px; z-index: 200; animation: slideUpFade 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
-/* 🌟 视觉统一：素材库大卡片去线化，圆角统一放大至 16px，提升高级感 */
-.asset-card { background: var(--bg-container); border: none; border-radius: 16px; overflow: hidden; display: flex; flex-direction: column; transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1); position: relative; animation: slideUpFade 0.5s cubic-bezier(0.16, 1, 0.3, 1) both; box-shadow: 0 4px 15px rgba(0,0,0,0.04); }
+/* 🌟 画廊核心重构1：去边框、加圆角、全画幅沉浸感 */
+.asset-card { 
+    background: var(--bg-container); 
+    border: none !important; 
+    border-radius: 16px; 
+    overflow: hidden; 
+    display: flex; 
+    flex-direction: column; 
+    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1); 
+    position: relative; 
+    animation: slideUpFade 0.5s cubic-bezier(0.16, 1, 0.3, 1) both; 
+    box-shadow: 0 4px 15px rgba(0,0,0,0.05); 
+}
 body.dark-theme .asset-card { background: rgba(30, 30, 40, 0.4); box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
-.asset-card:hover { transform: translateY(-6px); box-shadow: 0 16px 32px rgba(0,0,0,0.08); z-index: 2; }
-body.dark-theme .asset-card:hover { box-shadow: 0 16px 32px rgba(0,0,0,0.5); }
-.asset-card.selected { box-shadow: 0 0 0 2px var(--bg-user-msg), 0 16px 32px rgba(0, 122, 255, 0.2); transform: translateY(-6px); }
-body.dark-theme .asset-card.selected { box-shadow: 0 0 0 2px var(--shen-color), 0 16px 32px rgba(94, 92, 230, 0.3); }
+
+/* 🌟 画廊核心重构2：轻微放大 (1.03倍) 与丝滑的上浮动效 */
+.asset-card:hover { 
+    transform: translateY(-6px) scale(1.03); 
+    box-shadow: 0 16px 35px rgba(0,0,0,0.12); 
+    z-index: 2; 
+}
+body.dark-theme .asset-card:hover { box-shadow: 0 16px 35px rgba(0,0,0,0.6); }
+
+.asset-card.selected { 
+    box-shadow: 0 0 0 2px var(--bg-user-msg), 0 16px 35px rgba(0, 122, 255, 0.2); 
+    transform: translateY(-6px) scale(1.03); 
+    z-index: 3;
+}
+body.dark-theme .asset-card.selected { box-shadow: 0 0 0 2px var(--shen-color), 0 16px 35px rgba(94, 92, 230, 0.3); }
+
+/* 🌟 画廊核心重构3：底部文字信息容器（默认背景透明，鼠标悬停时才变为黑色渐变蒙版） */
+.asset-card > div:last-of-type:not(.bulk-overlay) {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    /* 💡 核心修复点1：默认背景设为透明，绝不遮挡图片！ */
+    background: transparent !important;
+    padding: 36px 16px 16px 16px !important;
+    border-top: none !important;
+    background-color: transparent !important;
+    z-index: 5;
+    /* 为蒙版的出现添加平滑的 transition 效果 */
+    transition: background 0.3s ease;
+}
+
+/* 强制文字变白并增加阴影，在蒙版上绝对清晰 */
+.asset-card > div:last-of-type:not(.bulk-overlay) *,
+.asset-card > div:last-of-type:not(.bulk-overlay) span {
+    color: rgba(255, 255, 255, 0.95) !important;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+}
+
+/* 🌟 核心修复点2：只有当鼠标悬浮在卡片上时，底部文字信息的背景才变为电影级黑色渐变蒙版 */
+.asset-card:hover > div:last-of-type:not(.bulk-overlay) {
+    /* 从透明到黑色的平滑渐变，完美承载文字 */
+    background: linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0.9) 100%) !important;
+}
+
+/* 🌟 画廊核心重构4：操作按钮极致收纳（默认隐藏，悬停时从底部弹射浮现） */
+.asset-card button,
+.asset-card .action-buttons {
+    opacity: 0;
+    transform: translateY(15px);
+    transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    pointer-events: none; /* 隐藏时不可点击，防止误触 */
+    z-index: 10;
+}
+
+.asset-card:hover button,
+.asset-card:hover .action-buttons {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto; /* 浮现后恢复点击 */
+}
+
+/* 强制图片占满卡片，为绝对定位的悬浮蒙版提供空间 */
+.asset-card img {
+    width: 100%;
+    height: auto;
+    display: block;
+}
 .bulk-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 10; cursor: pointer; background: transparent; }
 .checkbox-icon { position: absolute; top: 12px; left: 12px; width: 24px; height: 24px; border-radius: 50%; background: rgba(0,0,0,0.5); border: 2px solid white; display: flex; align-items: center; justify-content: center; color: transparent; transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1); z-index: 11; pointer-events: none;}
 .asset-card.selected .checkbox-icon { background: var(--bg-user-msg); border-color: var(--bg-user-msg); color: white; transform: scale(1.1); }
