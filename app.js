@@ -169,7 +169,7 @@ async function verifyKey() {
             if(heartbeatInterval) clearInterval(heartbeatInterval); heartbeatInterval = setInterval(checkHeartbeat, 8000);
             
             await fetchCloudChats(p);
-            Promise.all([fetchTeamAssets(), fetchPersonalAssets()]).then(() => { if (currentChatId === TEAM_ASSET_ID || currentChatId === PERSONAL_ASSET_ID) { renderAssetGrid(); } });
+            await Promise.all([fetchTeamAssets(), fetchPersonalAssets()]); // 💡 核心修复：同步等待数据拉取完成，彻底消除“空壳加载”的闪烁感
             
             chats = JSON.parse(localStorage.getItem('chats_' + currentUserKey)) || [];
             if (!chats.find(c => c.id === IMAGE_GEN_ID)) { chats.push({id: IMAGE_GEN_ID, title: "AI生图记录", messages: [], isImageGen: true}); saveChats(); }
@@ -195,9 +195,14 @@ async function verifyKey() {
             const savedModel = localStorage.getItem('model_type_' + currentUserKey);
             if (savedModel && dynamicModels[savedSource] && dynamicModels[savedSource].find(m => m.id === savedModel)) { document.getElementById('modelSelect').value = savedModel; }
             
-            document.getElementById('keySection').style.display = 'none'; document.getElementById('headerActions').style.display = 'flex'; document.getElementById('adminBtn').style.display = isAdmin ? 'inline-block' : 'none'; addAuditLog('登录系统'); switchChat(HUB_ID);
+            document.getElementById('keySection').style.display = 'none'; document.getElementById('headerActions').style.display = 'flex'; document.getElementById('adminBtn').style.display = isAdmin ? 'inline-block' : 'none'; addAuditLog('登录系统'); 
+            
+            // 💡 核心修复：读取刚才保存的界面 ID，并校验它是否合法，合法则恢复原位，否则退回大厅
+            const lastView = sessionStorage.getItem('last_active_view') || HUB_ID;
+            const isValidView = [HUB_ID, IMAGE_SPLIT_ID, IMAGE_GEN_ID, TEAM_ASSET_ID, PERSONAL_ASSET_ID].includes(lastView) || chats.some(c => c.id === lastView);
+            switchChat(isValidView ? lastView : HUB_ID);
         } else { 
-                    showToast("请联系管理员！"); 
+                    showToast("请联系管理员！");
                     document.getElementById('keySection').style.display = 'flex';
                 }
             } catch(e) { 
@@ -666,12 +671,15 @@ async function clearAuditLogs() {
 // ==================== 个人数据库全量备份与跨设备恢复引擎 ====================
 async function exportLocalLibrary() {
     await initLocalDB(); const allAssets = await localDB.getAll();
-    if (allAssets.length === 0) return alert("您的个人素材库是空的，无需备份！");
+    // 💡 修复：导出时同样只允许打包属于自己的私密数据
+    const myAssets = allAssets.filter(a => !a.uploader_key || a.uploader_key === currentUserKey);
     
-    const dataStr = JSON.stringify(allAssets);
+    if (myAssets.length === 0) return alert("您的个人素材库是空的，无需备份！");
+    
+    const dataStr = JSON.stringify(myAssets);
     const estimatedSizeMB = (new Blob([dataStr]).size / (1024 * 1024)).toFixed(2);
     
-    const confirmMsg = `当前图库共 <b>${allAssets.length}</b> 项素材，预计全量数据库备份约 <b>${estimatedSizeMB} MB</b>。<br><br><span style="color: var(--text-secondary); font-size: 0.9em; line-height: 1.5; display: block; text-align: left; background: var(--bg-hover); padding: 10px; border-radius: 8px;">💡 <b>温馨提示：</b><br>每次备份都会生成新文件，建议下载后及时清理旧备份，以免占用过多存储空间。</span><br>是否继续下载？`;
+    const confirmMsg = `当前图库共 <b>${myAssets.length}</b> 项素材，预计全量数据库备份约 <b>${estimatedSizeMB} MB</b>。<br><br><span style="color: var(--text-secondary); font-size: 0.9em; line-height: 1.5; display: block; text-align: left; background: var(--bg-hover); padding: 10px; border-radius: 8px;">💡 <b>温馨提示：</b><br>每次备份都会生成新文件，建议下载后及时清理旧备份，以免占用过多存储空间。</span><br>是否继续下载？`;
     
     openConfirmModal(() => {
         showToast("📦 正在生成全量数据库文件，请稍候...");
@@ -774,9 +782,9 @@ function renderAssetLibraryTool(mode) {
             </div>
 
             ${isPersonal ? `
-            <div id="personalWarningBanner" style="background: rgba(255, 149, 0, 0.1); border: 1px solid rgba(255, 149, 0, 0.3); border-radius: 8px; padding: 12px 16px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; color: #ff9500; font-size: 0.9rem; animation: pop 0.3s ease;">
+            <div id="personalWarningBanner" style="background: rgba(255, 149, 0, 0.1); border: 1px solid rgba(255, 149, 0, 0.3); border-radius: 8px; padding: 12px 16px; margin-bottom: 24px; display: ${sessionStorage.getItem('personalWarningDismissed') === 'true' ? 'none' : 'flex'}; justify-content: space-between; align-items: center; color: #ff9500; font-size: 0.9rem; animation: pop 0.3s ease;">
                 <div>⚠️ <strong>安全提示：</strong> 数据仅存于当前浏览器，清理缓存或换电脑前请务必备份！</div>
-                <button onclick="document.getElementById('personalWarningBanner').style.display='none'" style="background: transparent; border: none; color: #ff9500; font-size: 1.5rem; cursor: pointer; padding: 0 5px; line-height: 1; transition: 0.2s;" onmouseover="this.style.transform='scale(1.2)'" onmouseout="this.style.transform='scale(1)'" title="关闭提醒">×</button>
+                <button onclick="document.getElementById('personalWarningBanner').style.display='none'; sessionStorage.setItem('personalWarningDismissed', 'true');" style="background: transparent; border: none; color: #ff9500; font-size: 1.5rem; cursor: pointer; padding: 0 5px; line-height: 1; transition: 0.2s;" onmouseover="this.style.transform='scale(1.2)'" onmouseout="this.style.transform='scale(1)'" title="关闭后本次访问不再提醒">×</button>
             </div>
             ` : ''}
 
@@ -858,22 +866,24 @@ async function handleBatchAssetUpload(input) {
         renderAssetGrid();
     }
     if (failCount > 0) {
-        // 💡 核心修复 2：抛弃丑陋的原生 alert()，渲染具有呼吸动效和富文本排版的高级面板
         const errModal = document.getElementById('errorModal');
         if (errModal) {
-            document.getElementById('errorModalTitle').innerText = `上传异常拦截 (${failCount}张)`;
+            document.getElementById('errorModalTitle').innerText = `云端上传异常 (${failCount}张失败)`;
             document.getElementById('errorModalContent').innerHTML = `
-                <div style="margin-bottom:10px;"><strong>📡 云端引擎返回错误：</strong><br>
-                <span style="color:var(--danger-color); font-family:monospace; font-size:0.9rem;">${lastError}</span></div>
-                <div style="border-top:1px dashed var(--border-color); padding-top:10px;">
-                <strong>🛠️ 开发者排查建议：</strong><br>
-                1. 如果配置了腾讯云 COS，请重点检查 <code style="background:rgba(0,0,0,0.05);padding:2px 6px;border-radius:4px;">.env</code> 中的参数，或者查看是否漏装了 <code style="background:rgba(0,0,0,0.05);padding:2px 6px;border-radius:4px;">cos-python-sdk-v5</code>。<br>
-                2. 详情请切回 Python 控制台 (黑框) 查看完整红色报错堆栈。
+                <div style="background: rgba(255, 59, 48, 0.08); border: 1px solid rgba(255, 59, 48, 0.2); border-radius: 10px; padding: 14px; margin-bottom: 16px; color: var(--danger-color); text-align: left;">
+                    <div style="font-weight: bold; margin-bottom: 6px; font-size: 0.95rem;">📡 引擎报错：</div>
+                    <div style="font-family: monospace; font-size: 0.85rem; word-break: break-all; opacity: 0.9;">${lastError}</div>
+                </div>
+                <div style="font-size: 0.9rem; color: var(--text-secondary); text-align: left; padding: 0 4px; line-height: 1.6;">
+                    <strong style="color: var(--text-main);">🛠️ 智能诊断建议：</strong><br>
+                    1. 如未配置腾讯云，请直接留空 <code style="background:var(--bg-input); padding:2px 6px; border-radius:4px;">.env</code> 中的云配置项，系统将自动使用本地存储。<br>
+                    2. 若想使用云存储，请检查依赖是否漏装：<br>
+                    <code style="display:block; background:rgba(0,0,0,0.05); padding:8px; border-radius:8px; margin-top:8px; text-align:center; font-weight:bold; color:var(--text-main);">pip install -U cos-python-sdk-v5</code>
                 </div>
             `;
             errModal.classList.add('show');
         } else {
-            alert(`❌ 上传失败：\n${lastError}`);
+            alert(`上传失败：\n${lastError}`);
         }
     }
 }
@@ -1575,6 +1585,7 @@ function renderHubContent() {
 function switchChat(id) { 
     if (currentChatId === id && currentChatId !== null) return;
     isBulkMode = false; selectedAssetIds.clear(); currentChatId = id; 
+    sessionStorage.setItem('last_active_view', id); // 💡 记录当前停留的界面 ID，刷新防跳转
     const inputSec = document.getElementById('inputSection'), imgGenSec = document.getElementById('imageGenInputSection'), chatBox = document.getElementById('chatBox'), title = document.getElementById('headerTitle'), backBtn = document.getElementById('backToHubBtn'), editIcon = document.getElementById('headerEditIcon'), input = document.getElementById('userInput');
     const exportBtn = document.getElementById('exportPdfBtn'); 
     
@@ -1918,7 +1929,9 @@ async function saveToPersonalLibrary(base64Data, msgIndex) {
 // 2. 资产出库：将素材库的图片提取为控制台垫图
 function useAssetAsReference(imgUrl) {
     switchChat(IMAGE_GEN_ID);
-    const fullUrl = imgUrl.startsWith('http') ? imgUrl : (API_BASE_URL + imgUrl);
+    // 💡 核心修复：增加对 data: 和 blob: 本地内存图片格式的识别，防止被错误拼接上服务器 API 前缀
+    const fullUrl = (imgUrl.startsWith('http') || imgUrl.startsWith('data:') || imgUrl.startsWith('blob:')) ? imgUrl : (API_BASE_URL + imgUrl);
+    
     if(currentUploadedImages.length >= 10) return alert("⚠️ 控制台垫图已达 10 张上限！");
     
     currentUploadedImages.push(fullUrl);
@@ -1933,11 +1946,10 @@ function useAssetPrompt(promptText) {
     const inputEl = document.getElementById('imgGenInput');
     inputEl.value = promptText;
     if(typeof autoResizeTextarea === 'function') autoResizeTextarea(inputEl);
-    inputEl.focus();
+   inputEl.focus();
     showToast("✅ 已成功提取提示词参数");
 }
 
-init();
 // =========================================================================
 // 🚀 终极权限与游客模式引擎 (直接追加到底部，自动覆盖全局生效)
 // =========================================================================
@@ -2022,7 +2034,10 @@ window.fetch = async function(...args) {
                 const bodyObj = JSON.parse(options.body);
                 if (bodyObj.library_mode === 'personal') {
                     await initLocalDB(); const localAssets = await localDB.getAll();
-                    const fastAssets = localAssets.map(a => ({ ...a, image: base64ToBlobUrl(a.image), thumb: base64ToBlobUrl(a.thumb) }));
+                    // 💡 核心修复：根据当前请求的用户密钥进行过滤，实现本地数据的物理隔离！
+                    // (兼容旧数据：如果旧数据没有 uploader_key，则暂时允许查看，新数据将严格隔离)
+                    const myAssets = localAssets.filter(a => !a.uploader_key || a.uploader_key === bodyObj.user_key);
+                    const fastAssets = myAssets.map(a => ({ ...a, image: base64ToBlobUrl(a.image), thumb: base64ToBlobUrl(a.thumb) }));
                     return new Response(JSON.stringify(fastAssets), { status: 200, headers: { 'Content-Type': 'application/json' } });
                 }
             }
@@ -2036,7 +2051,9 @@ window.fetch = async function(...args) {
                         const assetObj = {
                             id: unique_id, title: options.body.get('title') || '未命名', type: options.body.get('type') || 'character',
                             prompt: options.body.get('prompt') || '', image: reader.result, thumb: options.body.get('thumb_base64') || reader.result,
-                            library_mode: 'personal', created_at: Date.now()
+                            library_mode: 'personal', created_at: Date.now(),
+                            // 💡 核心修复：保存素材时，强制打上当前用户的专属密钥烙印！
+                            uploader_key: options.body.get('user_key') || currentUserKey
                         };
                         await localDB.save(assetObj);
                         resolve(new Response(JSON.stringify({ success: true, asset: assetObj }), { status: 200 }));
@@ -2208,6 +2225,7 @@ if (realSendBtn) {
         }
     });
 }
-// 重启一次引擎，应用最高权限
-setTimeout(() => { init(); }, 50);
+
+// 💡 核心修复：在所有 API 拦截器和重写引擎挂载完毕后，统一执行唯一一次最纯净的初始化。杜绝“双黄蛋”导致的幽灵闪烁！
+init();
 // ========================== 统一拦截引擎结束 ========================================

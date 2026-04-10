@@ -169,9 +169,11 @@
 
                     <select id="imgGenModelSelect" class="inline-model-select" style="height: 32px; padding: 0 8px; border: none; background: rgba(128,128,128,0.1); font-weight: bold; border-radius: 8px;" title="选择用于生成图像的底层 AI 模型"></select>
 
-                    <button id="imgGenSettingsToggle" class="settings-toggle-btn" style="height: 32px; border: none; background: rgba(128,128,128,0.1); padding: 0 10px; border-radius: 8px;" onclick="toggleImgGenSettings()">
-                        <div class="ratio-icon r-16-9" id="toggleRatioIcon" style="margin-bottom: 0; width: 14px; height: 8px; border-width: 1px;"></div>
-                        <span id="toggleRatioText" style="font-size: 0.8rem;">16:9</span><span class="divider" style="margin: 0 4px;">|</span><span id="toggleResText" style="font-size: 0.8rem;">高清 2K</span>
+                    <button id="imgGenSettingsToggle" class="settings-toggle-btn" style="height: 32px; border: none; background: rgba(128,128,128,0.08); padding: 0 10px; border-radius: 8px; gap: 5px;" onclick="toggleImgGenSettings()" title="点击调整画质与比例">
+                        <div class="ratio-icon r-16-9" id="toggleRatioIcon" style="margin-bottom: 0; width: 12px; height: 7px; border-width: 1px; opacity: 0.85;"></div>
+                        <span id="toggleRatioText" style="font-size: 0.75rem; font-weight: 600;">16:9</span>
+                        <span class="divider" style="margin: 0 1px; opacity: 0.3; font-size: 0.7rem;">|</span>
+                        <span id="toggleResText" style="font-size: 0.75rem; font-weight: 600;">高清 2K</span>
                     </button>
                 </div>
 
@@ -221,11 +223,11 @@
 <div class="modal-overlay" id="confirmModal" style="display: none;"><div class="modal-box" style="max-width:320px; text-align: center;"><h3 style="margin-top: 0;">操作确认</h3><p style="color: var(--text-secondary); margin-bottom: 24px;">您确定要执行此操作吗？</p><div style="display:flex; gap:10px;"><button class="modal-btn cancel-btn" style="flex:1" onclick="closeConfirmModal()">取消</button><button class="modal-btn btn-confirm" style="flex:1; background: var(--danger-color);" onclick="executeConfirm()">确认</button></div></div></div>
 
 <div class="modal-overlay" id="errorModal" style="display: none;">
-    <div class="modal-box" style="max-width: 420px; text-align: center; border-top: 5px solid var(--danger-color);">
-        <div style="font-size: 3.5rem; margin-bottom: 10px; animation: pop 0.4s cubic-bezier(0.16, 1, 0.3, 1);">⚠️</div>
-        <h3 style="margin-top: 0; color: var(--danger-color); font-size: 1.3rem; margin-bottom: 16px;" id="errorModalTitle">云端拦截</h3>
-        <div id="errorModalContent" style="color: var(--text-secondary); margin-bottom: 24px; font-size: 0.95rem; line-height: 1.6; text-align: left; background: var(--bg-hover); padding: 16px; border-radius: 12px; border: 1px solid var(--border-color); word-break: break-word;"></div>
-        <button class="modal-btn btn-confirm" style="width: 100%; background: var(--bg-user-msg);" onclick="document.getElementById('errorModal').classList.remove('show')">我知道了</button>
+    <div class="modal-box" style="max-width: 460px; text-align: center; padding: 35px 30px; border-top: 6px solid var(--danger-color);">
+        <div style="font-size: 3.5rem; margin-bottom: 12px; line-height: 1; animation: pop 0.4s cubic-bezier(0.16, 1, 0.3, 1);">⚠️</div>
+        <h3 style="margin-top: 0; color: var(--danger-color); font-size: 1.3rem; margin-bottom: 20px; font-weight: bold;" id="errorModalTitle">云端拦截</h3>
+        <div id="errorModalContent" style="margin-bottom: 25px;"></div>
+        <button class="modal-btn btn-confirm" style="width: 100%; padding: 14px; background: var(--danger-color); font-size: 1.05rem;" onclick="document.getElementById('errorModal').classList.remove('show')">我知道了，去检查</button>
     </div>
 </div>
 

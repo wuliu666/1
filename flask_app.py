@@ -550,11 +550,9 @@ def upload_asset():
                     )
                 except: pass
         except Exception as e:
-            print(f"🚨 腾讯云 COS 上传异常: {e}")
-            # 如果是忘记安装依赖库，将报错抛给前端让用户直接看到
-            if "qcloud_cos" in str(e):
-                return jsonify({"error": "缺少腾讯云组件！请在控制台运行: pip install -U cos-python-sdk-v5"}), 500
-            return jsonify({"error": f"云端存储报错: {str(e)[:80]}"}), 500
+            # 💡 核心修复：遇到任何 COS 报错（包括未安装库），只打印日志，绝不抛出 500 中断！
+            # 这样程序就会平滑地往下走到 `if not rel_path:` 从而触发本地存储兜底。
+            print(f"🚨 腾讯云 COS 上传异常或未配置，自动切回本地存储: {e}")
     
     # 💡 核心修复：智能存储双引擎！恢复本地兜底功能。
     # 如果 .env 中未配置 COS_SECRET_ID，自动降级保存到本地 static 目录，保证本地开发调试畅通无阻
