@@ -840,7 +840,8 @@ def generate_image():
     source = data.get('api_source', 'geeknow')
 
     keys = load_keys()
-    if pwd not in keys or keys[pwd].get("is_deleted", False): 
+    is_master = hmac.compare_digest(str(pwd or ''), str(MASTER_KEY))
+    if not is_master and (pwd not in keys or keys.get(pwd, {}).get("is_deleted", False)): 
         return jsonify({"error": "请联系管理员~"}), 403
         
     global_conf = keys.get('__GLOBAL_CONFIG__', {})
@@ -1033,7 +1034,8 @@ def chat():
     is_storyboard = data.get('is_storyboard', False)
 
     keys = load_keys()
-    if pwd not in keys or keys[pwd].get("is_deleted", False): 
+    is_master = hmac.compare_digest(str(pwd or ''), str(MASTER_KEY))
+    if not is_master and (pwd not in keys or keys.get(pwd, {}).get("is_deleted", False)): 
         return jsonify({"error": "请联系管理员~"}), 403
         
     global_conf = keys.get('__GLOBAL_CONFIG__', {})
