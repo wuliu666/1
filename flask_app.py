@@ -374,7 +374,7 @@ def check_auth_global():
 # =====================================================================
 
 @app.route('/api/heartbeat', methods=['POST'])
-@limiter.limit("15 per minute")
+@limiter.limit("60 per minute") # 进一步放宽限制，防止高频刷新误伤
 def heartbeat():
     data = request.json
     user_key = data.get('user_key')
@@ -397,7 +397,7 @@ def heartbeat():
     return jsonify({"valid": False})
 
 @app.route('/verify', methods=['POST'])
-@limiter.limit("10 per minute")
+@limiter.limit("60 per minute") # 允许每秒刷新一次，彻底告别 F5 刷新被拦截
 def verify():
     pwd = request.json.get('user_key')
     session_token = request.json.get('session_token')

@@ -66,11 +66,16 @@ body.dark-theme .sidebar { background: transparent; border-right: 1px solid rgba
 .show-sidebar-btn:hover { background: var(--bg-hover); }
 .sidebar.collapsed ~ .main-content .show-sidebar-btn { display: inline-block; }
 
-.new-chat-btn { background: transparent; border: 1px solid var(--border-color); color: var(--text-main); padding: 10px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: 0.2s; margin-bottom: 10px; }
-.new-chat-btn:hover { background: var(--bg-hover); color: var(--bg-user-msg); border-color: var(--bg-user-msg); }
-.storyboard-btn { background: var(--bg-input); border: 1px solid var(--border-color); color: var(--text-main); padding: 10px 14px; border-radius: 8px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: 0.2s; font-weight: 600; font-size: 0.95rem; }
-.storyboard-btn:hover { background: var(--bg-hover); border-color: var(--highlight-color); color: var(--highlight-color); }
-.storyboard-btn.active { background: var(--bg-user-msg); border-color: var(--bg-user-msg); color: white; box-shadow: 0 4px 12px rgba(0, 122, 255, 0.3); }
+/* 🌟 视觉统一：侧边栏按钮去除生硬边框，采用极简背景与柔和悬浮阴影，圆角统一至 12px */
+.new-chat-btn { background: rgba(0, 0, 0, 0.02); border: none; color: var(--text-main); padding: 12px 10px; border-radius: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); margin-bottom: 12px; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.03); font-weight: 500; }
+.new-chat-btn:hover { background: var(--bg-container); color: var(--bg-user-msg); box-shadow: 0 4px 12px rgba(0,0,0,0.05), inset 0 0 0 1px rgba(0, 122, 255, 0.15); transform: translateY(-1px); }
+body.dark-theme .new-chat-btn { background: rgba(255, 255, 255, 0.03); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.02); }
+body.dark-theme .new-chat-btn:hover { background: rgba(255, 255, 255, 0.08); box-shadow: 0 4px 12px rgba(0,0,0,0.2), inset 0 0 0 1px rgba(94, 92, 230, 0.3); color: var(--text-main); }
+
+.storyboard-btn { background: var(--bg-input); border: none; color: var(--text-main); padding: 12px 14px; border-radius: 12px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); font-weight: 600; font-size: 0.95rem; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.03); }
+.storyboard-btn:hover { background: var(--bg-container); color: var(--highlight-color); box-shadow: 0 4px 12px rgba(0,0,0,0.05), inset 0 0 0 1px rgba(255, 149, 0, 0.2); transform: translateY(-1px); }
+body.dark-theme .storyboard-btn { background: rgba(255, 255, 255, 0.02); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.03); }
+.storyboard-btn.active { background: linear-gradient(135deg, var(--bg-user-msg), #5e5ce6); border: none; color: white; box-shadow: 0 6px 16px rgba(0, 122, 255, 0.25); transform: translateY(-1px); }
 
 .sidebar-tabs { display: flex; background: var(--bg-input); padding: 4px; border-radius: 10px; margin-top: 10px; margin-bottom: 10px; }
 .tab-btn { flex: 1; text-align: center; padding: 6px 0; border-radius: 6px; cursor: pointer; font-size: 0.85rem; color: var(--text-secondary); border: none; background: transparent; transition: 0.2s; }
@@ -88,19 +93,26 @@ body.dark-theme .tab-btn.active { background: rgba(255, 255, 255, 0.1); color: v
 
 /* 打通背景关键：让主内容区全透明，露出底层光效 */
 .main-content { flex: 1; display: flex; flex-direction: column; background: transparent; position: relative; min-width: 0; }
-.header { padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); }
+/* 🌟 视觉统一：头部去除死板底边线，改用毛玻璃+轻微投影，顶部导航按钮去边框化 */
+.header { padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; border-bottom: none; background: rgba(255, 255, 255, 0.4); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); z-index: 50; box-shadow: 0 4px 20px rgba(0,0,0,0.02); }
+body.dark-theme .header { background: rgba(18, 18, 26, 0.4); box-shadow: 0 4px 20px rgba(0,0,0,0.2); }
 .header-title-container { display: flex; align-items: center; gap: 8px; }
-.header-main-text { font-size: 1.1rem; font-weight: 600; cursor: pointer; padding: 4px 8px; border-radius: 6px; transition: 0.2s; margin-left: -8px; }
-.header-main-text:hover { background: var(--bg-hover); color: var(--highlight-color); }
-.header-edit-icon { font-size: 0.9rem; margin-left: 4px; opacity: 0.5; }
-.nav-btn { background: none; border: 1px solid var(--border-color); padding: 5px 12px; border-radius: 12px; font-size: 0.82rem; cursor: pointer; transition: 0.2s; color: var(--text-main); }
-.nav-btn:hover { background: var(--bg-hover); border-color: var(--bg-user-msg); }
+.header-main-text { font-size: 1.15rem; font-weight: 600; cursor: pointer; padding: 6px 10px; border-radius: 10px; transition: all 0.2s ease; margin-left: -8px; letter-spacing: 0.5px; }
+.header-main-text:hover { background: rgba(0, 0, 0, 0.04); color: var(--highlight-color); }
+body.dark-theme .header-main-text:hover { background: rgba(255, 255, 255, 0.05); }
+.header-edit-icon { font-size: 0.9rem; margin-left: 4px; opacity: 0.4; }
+
+.nav-btn { background: var(--bg-input); border: none; padding: 8px 16px; border-radius: 14px; font-size: 0.85rem; cursor: pointer; transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); color: var(--text-main); box-shadow: inset 0 0 0 1px rgba(0,0,0,0.03); font-weight: 500; }
+.nav-btn:hover { background: var(--bg-container); color: var(--bg-user-msg); box-shadow: 0 4px 10px rgba(0,0,0,0.06), inset 0 0 0 1px rgba(0, 122, 255, 0.15); transform: translateY(-1px); }
+body.dark-theme .nav-btn { background: rgba(255, 255, 255, 0.05); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02); }
+body.dark-theme .nav-btn:hover { background: rgba(255, 255, 255, 0.1); box-shadow: 0 4px 12px rgba(0,0,0,0.3), inset 0 0 0 1px rgba(94, 92, 230, 0.3); color: white;}
 .back-hub-btn { background: rgba(0, 122, 255, 0.1); border: 1px solid var(--shen-color); color: var(--shen-color); padding: 5px 12px; border-radius: 12px; font-size: 0.85rem; cursor: pointer; transition: 0.2s; font-weight: 600; display: none; }
 .back-hub-btn:hover { background: var(--shen-color); color: white; }
 body.dark-theme .back-hub-btn { background: rgba(10, 132, 255, 0.15); }
 
-.chat-box { flex: 1; padding: 24px; overflow-y: auto; display: flex; flex-direction: column; gap: 18px; scroll-behavior: smooth; }
-.message { max-width: 85%; padding: 14px 20px; border-radius: 20px; font-size: 0.96rem; line-height: 1.6; word-wrap: break-word; display: flex; flex-direction: column; animation: slideUpFade 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; box-shadow: 0 2px 8px rgba(0,0,0,0.03); }
+/* 🌟 空间感优化：对话记录区增加元素间距，提升文本行高，阅读更轻松 */
+.chat-box { flex: 1; padding: 32px 24px; overflow-y: auto; display: flex; flex-direction: column; gap: 24px; scroll-behavior: smooth; }
+.message { max-width: 85%; padding: 16px 24px; border-radius: 24px; font-size: 1rem; line-height: 1.75; letter-spacing: 0.3px; word-wrap: break-word; display: flex; flex-direction: column; animation: slideUpFade 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; box-shadow: 0 4px 15px rgba(0,0,0,0.03); }
 .user-msg { background: linear-gradient(135deg, #007AFF, #0056b3); color: white; align-self: flex-end; border-bottom-right-radius: 4px; box-shadow: 0 4px 12px rgba(0, 122, 255, 0.25); }
 .bot-msg { background: var(--bg-bot-msg); color: var(--text-main); align-self: flex-start; border-bottom-left-radius: 4px; border: 1px solid rgba(0,0,0,0.04); }
 body.dark-theme .bot-msg { 
@@ -124,7 +136,8 @@ body.dark-theme .bot-msg .msg-actions { border-top-color: rgba(255, 255, 255, 0.
 .input-section:focus-within { border-color: rgba(0, 122, 255, 0.4); box-shadow: 0 12px 35px rgba(0,0,0,0.08), 0 0 0 3px rgba(0, 122, 255, 0.1); }
 body.dark-theme .input-section:focus-within { border-color: rgba(94, 92, 230, 0.6); box-shadow: 0 12px 35px rgba(0,0,0,0.4), 0 0 0 3px rgba(94, 92, 230, 0.15); }
 body.dark-theme .input-section { border: 1px solid rgba(255,255,255,0.1); background: rgba(28, 28, 30, 0.75); box-shadow: 0 10px 30px rgba(0,0,0,0.3), 0 1px 3px rgba(0,0,0,0.1); }
-textarea { width: 100%; padding: 8px 10px; border-radius: 12px; border: none; background: transparent; color: var(--text-main); resize: none; outline: none; height: 60px; min-height: 60px; max-height: 300px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 1.05rem; box-sizing: border-box; transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1); line-height: 1.6; scrollbar-width: none; overflow-y: hidden; margin-bottom: 4px; }
+/* 🌟 沉浸式输入：主文本框行高统一提升至 1.75，打字体验更通透 */
+textarea { width: 100%; padding: 8px 10px; border-radius: 12px; border: none; background: transparent; color: var(--text-main); resize: none; outline: none; height: 60px; min-height: 60px; max-height: 300px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 1.05rem; box-sizing: border-box; transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1); line-height: 1.75; scrollbar-width: none; overflow-y: hidden; margin-bottom: 4px; }
 textarea:focus { box-shadow: none; border-color: transparent; }
 textarea.show-scrollbar { 
     overflow-y: auto; 
@@ -215,9 +228,10 @@ body.dark-theme .input-section.fullscreen-mode {
 .fullscreen-overlay.show { display: block; opacity: 1; }
 .input-tools-row { display: flex; flex-direction: column; gap: 8px; flex-shrink: 0; }
 .mobile-only-tools { display: none; }
-.inline-model-select { padding: 0 10px; height: 44px; border-radius: 12px; border: 1px solid var(--border-color); background: var(--bg-input); color: var(--text-main); outline: none; cursor: pointer; font-size: 0.9rem; flex-shrink: 0; transition: 0.2s;}
+/* 🌟 图标绝对对齐：统一所有底部工具组件高度为 40px，强制垂直居中对齐 */
+.inline-model-select { padding: 0 12px; height: 40px; border-radius: 12px; border: 1px solid var(--border-color); background: var(--bg-input); color: var(--text-main); outline: none; cursor: pointer; font-size: 0.9rem; flex-shrink: 0; transition: 0.2s; display: flex; align-items: center; box-sizing: border-box; }
 .inline-model-select:focus { border-color: var(--bg-user-msg); }
-.send-btn { background:var(--bg-user-msg); color:white; border:none; border-radius:50%; width:44px; height:44px; cursor:pointer; flex-shrink: 0; font-size: 1.2rem; transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1); align-self: flex-end; }
+.send-btn { background:var(--bg-user-msg); color:white; border:none; border-radius:50%; width:40px; height:40px; cursor:pointer; flex-shrink: 0; font-size: 1.2rem; transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1); align-self: center; display: flex; align-items: center; justify-content: center; }
 .send-btn:hover { transform: scale(1.08); background: #0056b3; }
 .send-btn:active { transform: scale(0.95); }
 .mobile-send-btn { display: none; }
@@ -253,19 +267,22 @@ input[type="password"]::-webkit-credentials-auto-fill-button { display: none !im
 .modal-overlay { position: fixed; inset: 0; background: var(--overlay-bg); z-index: 1000; backdrop-filter: blur(8px); justify-content: center; align-items: center; transition: opacity 0.3s;}
 
 .modal-overlay.show { display: flex !important; }
-.modal-box { background: var(--bg-container); border-radius: 24px; padding: 32px; width: 90%; max-width: 480px; box-shadow: 0 20px 50px rgba(0,0,0,0.3); animation: pop 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; max-height: 90vh; overflow-y: auto; }
+/* 🌟 空间感优化：弹窗表单增加留白，拉开控件距离，输入框更大气 */
+.modal-box { background: var(--bg-container); border-radius: 28px; padding: 40px; width: 90%; max-width: 520px; box-shadow: 0 25px 60px rgba(0,0,0,0.15); animation: pop 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; max-height: 90vh; overflow-y: auto; border: 1px solid rgba(0,0,0,0.05); }
+body.dark-theme .modal-box { box-shadow: 0 25px 60px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.08); background: rgba(28, 28, 30, 0.95); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); }
 @keyframes pop { from { opacity: 0; transform: scale(0.92) translateY(10px); } to { opacity: 1; transform: scale(1) translateY(0); } }
 
-.modal-btn { padding: 10px 20px; border-radius: 10px; border: none; cursor: pointer; font-weight: 600; transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1); }
+.modal-btn { padding: 14px 24px; border-radius: 14px; border: none; cursor: pointer; font-weight: 600; font-size: 1rem; transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
 .btn-confirm { background: var(--bg-user-msg); color: white; }
-.btn-confirm:hover { background: #0056b3; transform: scale(1.03); }
+.btn-confirm:hover { background: #0056b3; transform: scale(1.03); box-shadow: 0 6px 16px rgba(0, 122, 255, 0.3); }
 .btn-confirm:active { transform: scale(0.97); }
-.cancel-btn { background: var(--bg-input); color: var(--text-main); border: 1px solid var(--border-color); }
-.cancel-btn:hover { border-color: var(--text-main); transform: scale(1.03); }
+.cancel-btn { background: var(--bg-input); color: var(--text-main); border: none; box-shadow: inset 0 0 0 1px var(--border-color); }
+.cancel-btn:hover { background: var(--bg-hover); transform: scale(1.03); }
 .cancel-btn:active { transform: scale(0.97); }
-.setting-row { margin-bottom: 15px; }
-.setting-row label { display: block; font-size: 0.85rem; margin-bottom: 5px; color: var(--text-secondary); font-weight: bold; }
-.setting-row input, .setting-row select { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-input); color: var(--text-main); box-sizing: border-box; outline: none; transition: 0.2s;}
+
+.setting-row { margin-bottom: 24px; }
+.setting-row label { display: block; font-size: 0.9rem; margin-bottom: 8px; color: var(--text-secondary); font-weight: 600; letter-spacing: 0.3px; }
+.setting-row input, .setting-row select { width: 100%; padding: 14px 16px; border-radius: 12px; border: none; box-shadow: inset 0 0 0 1px var(--border-color); background: var(--bg-input); color: var(--text-main); font-size: 1rem; box-sizing: border-box; outline: none; transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);}
 .setting-row select:focus, .setting-row input:focus { border-color: var(--bg-user-msg); box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1); }
 .status-del { opacity: 0.3; text-decoration: line-through; }
 
@@ -278,11 +295,13 @@ input[type="password"]::-webkit-credentials-auto-fill-button { display: none !im
 .admin-tab-content.active { display: block; }
 .model-item-row { display: flex; justify-content: space-between; align-items: center; padding: 8px; background: var(--bg-input); border-radius: 6px; margin-bottom: 6px; font-size: 0.85rem; border: 1px solid var(--border-color);}
 
-.settings-toggle-btn { display: flex; align-items: center; gap: 8px; background: var(--bg-input); border: 1px solid var(--border-color); color: var(--text-main); padding: 0 16px; border-radius: 12px; cursor: pointer; font-size: 0.95rem; font-weight: 500; transition: 0.2s; height: 44px; box-sizing: border-box; flex-shrink: 0;}
+/* 🌟 图标绝对对齐：设置开关与上传按钮同步 40px 高度与物理居中，并转化为轻量级悬浮质感 */
+.settings-toggle-btn { display: flex; align-items: center; justify-content: center; gap: 8px; background: var(--bg-input); border: 1px solid var(--border-color); color: var(--text-main); padding: 0 16px; border-radius: 12px; cursor: pointer; font-size: 0.95rem; font-weight: 500; transition: 0.2s; height: 40px; box-sizing: border-box; flex-shrink: 0;}
 .settings-toggle-btn:hover { background: var(--bg-hover); border-color: var(--text-secondary); }
 .settings-toggle-btn .divider { color: var(--border-color); margin: 0 2px; }
-.img-upload-label { cursor: pointer; background: var(--bg-container); border-radius: 12px; border: 1px solid var(--border-color); display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; flex-shrink: 0; font-size: 1.2rem; transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1); }
-.img-upload-label:hover { transform: scale(1.05); }
+
+.img-upload-label { cursor: pointer; background: transparent; border: none; color: var(--text-secondary); border-radius: 50%; display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; flex-shrink: 0; font-size: 1.3rem; transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1); margin: 0; }
+.img-upload-label:hover { background: rgba(128,128,128,0.1); color: var(--text-main); transform: scale(1.1); }
 
 /* --- 超级生图输入台 (Composer) 专属样式 (完全同步主对话框 UI) --- */
 .composer-box { 
@@ -350,6 +369,7 @@ body.dark-theme .composer-box:focus-within {
 }
 
 /* 强制消除文本框自身的一切背景、边框 */
+/* 🌟 沉浸式输入：生图文本框同步行高 1.75 */
 .img-gen-textarea { 
     width: calc(100% - 48px); 
     padding: 8px 10px; 
@@ -367,10 +387,18 @@ body.dark-theme .composer-box:focus-within {
     font-size: 1.05rem; 
     box-sizing: border-box; 
     transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1); 
-    line-height: 1.6; 
+    line-height: 1.75; 
     scrollbar-width: none; 
     overflow-y: hidden; 
     margin-bottom: 4px; 
+}
+
+/* 🌙 护眼模式：暗黑主题下输入框和机器气泡文字使用 85% 透明度的浅灰色，久看不累 */
+body.dark-theme textarea,
+body.dark-theme .img-gen-textarea,
+body.dark-theme .bot-msg {
+    color: rgba(255, 255, 255, 0.85) !important;
+    font-weight: 400;
 }
 
 .img-gen-textarea:focus { 
@@ -391,12 +419,15 @@ body.dark-theme .img-gen-textarea.show-scrollbar::-webkit-scrollbar-thumb:hover 
 /* 接回原本的按钮代码，不要删这行 */
 .composer-clear-btn { background: var(--bg-input); border: none; color: var(--text-secondary); border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s; font-size: 0.75rem; }
 .composer-clear-btn:hover { background: var(--danger-color); color: white; }
-.img-gen-panel { position: absolute; bottom: 100%; left: 24px; right: 24px; padding: 20px 24px; border-radius: 16px; margin-bottom: 12px; background: var(--bg-container); border: 1px solid var(--border-color); box-shadow: 0 -10px 40px rgba(0,0,0,0.1); z-index: 100; transform-origin: bottom center; animation: panelPop 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
+/* 🌟 空间感优化：生图设置面板大幅增加内留白，选项之间拉开距离，避免误触与拥挤 */
+.img-gen-panel { position: absolute; bottom: 100%; left: 24px; right: 24px; padding: 32px 36px; border-radius: 24px; margin-bottom: 16px; background: var(--bg-container); border: none; box-shadow: 0 -10px 50px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.03); z-index: 100; transform-origin: bottom center; animation: panelPop 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
+body.dark-theme .img-gen-panel { box-shadow: 0 -10px 50px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.05); background: rgba(30, 30, 40, 0.85); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); }
 @keyframes panelPop { from { opacity: 0; transform: translateY(15px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
-.panel-label { font-size: 0.9rem; margin-bottom: 12px; color: var(--text-secondary); font-weight: 600; }
-.ratio-row { display: flex; gap: 6px; margin-bottom: 24px; overflow-x: auto; scrollbar-width: none; }
+.panel-label { font-size: 0.95rem; margin-bottom: 16px; color: var(--text-secondary); font-weight: 600; letter-spacing: 0.5px; }
+.ratio-row { display: flex; gap: 12px; margin-bottom: 32px; overflow-x: auto; scrollbar-width: none; padding-bottom: 4px; }
 .ratio-row::-webkit-scrollbar { display: none; }
-.ratio-btn { display: flex; flex-direction: column; align-items: center; justify-content: center; background: transparent; border: 1px solid transparent; color: var(--text-secondary); cursor: pointer; padding: 10px 14px; border-radius: 10px; transition: all 0.2s; font-size: 0.85rem; min-width: 60px;}
+.ratio-btn { display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(0,0,0,0.02); border: none; color: var(--text-secondary); cursor: pointer; padding: 14px 18px; border-radius: 14px; transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); font-size: 0.9rem; min-width: 68px; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.03); }
+body.dark-theme .ratio-btn { background: rgba(255,255,255,0.03); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.03); }
 .ratio-btn:hover { background: var(--bg-input); color: var(--text-main); transform: scale(1.05); }
 .ratio-btn.active { background: var(--bg-input); color: var(--text-main); font-weight: bold; box-shadow: inset 0 0 0 1px var(--border-color); }
 
@@ -416,9 +447,12 @@ body.dark-theme .img-gen-textarea.show-scrollbar::-webkit-scrollbar-thumb:hover 
 .size-link { color: var(--text-secondary); font-size: 1.2rem; }
 .size-unit { color: var(--text-secondary); font-size: 0.9rem; font-weight: bold; }
 
-.gallery-container { display: flex; gap: 12px; overflow-x: auto; padding: 10px 0; margin-top: 10px; scroll-behavior: smooth; }
-.gallery-item { position: relative; flex-shrink: 0; width: 240px; height: 240px; border-radius: 12px; overflow: hidden; border: 1px solid var(--border-color); background: var(--bg-container); box-shadow: 0 4px 12px rgba(0,0,0,0.05); transition: transform 0.3s; }
-.gallery-item:hover { transform: scale(1.02); box-shadow: 0 8px 24px rgba(0,0,0,0.1); }
+/* 🌟 视觉统一：画廊卡片去除死板外边框，圆角统一放大至 16px，采用大范围弥散阴影，增加悬浮呼吸感 */
+.gallery-container { display: flex; gap: 16px; overflow-x: auto; padding: 16px 4px; margin-top: 8px; scroll-behavior: smooth; }
+.gallery-item { position: relative; flex-shrink: 0; width: 240px; height: 240px; border-radius: 16px; overflow: hidden; border: none; background: var(--bg-container); box-shadow: 0 4px 15px rgba(0,0,0,0.06); transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
+body.dark-theme .gallery-item { box-shadow: 0 4px 15px rgba(0,0,0,0.4); background: rgba(30, 30, 40, 0.6); }
+.gallery-item:hover { transform: translateY(-4px) scale(1.02); box-shadow: 0 12px 30px rgba(0,0,0,0.12); }
+body.dark-theme .gallery-item:hover { box-shadow: 0 12px 30px rgba(0,0,0,0.6); }
 .gallery-item img { width: 100%; height: 100%; object-fit: contain; }
 .gallery-item .hover-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.4); opacity: 0; transition: opacity 0.2s; display: flex; align-items: center; justify-content: center; gap: 16px; backdrop-filter: blur(2px); }
 .gallery-item:hover .hover-overlay { opacity: 1; }
@@ -430,9 +464,13 @@ body.dark-theme .img-gen-textarea.show-scrollbar::-webkit-scrollbar-thumb:hover 
 .img-preview-close:hover { transform: scale(1.2); }
 
 .bulk-toolbar { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--bg-container); border: 1px solid var(--border-color); border-radius: 30px; padding: 12px 24px; box-shadow: 0 10px 40px rgba(0,0,0,0.15); align-items: center; justify-content: space-between; gap: 24px; z-index: 200; animation: slideUpFade 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
-.asset-card { background: var(--bg-input); border: 1px solid var(--border-color); border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); position: relative; animation: slideUpFade 0.5s cubic-bezier(0.16, 1, 0.3, 1) both; }
-.asset-card:hover { transform: translateY(-4px); box-shadow: 0 12px 24px rgba(0,0,0,0.08); }
-.asset-card.selected { border-color: var(--bg-user-msg); box-shadow: 0 0 0 2px var(--bg-user-msg), 0 12px 24px rgba(0, 122, 255, 0.15); transform: translateY(-4px); }
+/* 🌟 视觉统一：素材库大卡片去线化，圆角统一放大至 16px，提升高级感 */
+.asset-card { background: var(--bg-container); border: none; border-radius: 16px; overflow: hidden; display: flex; flex-direction: column; transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1); position: relative; animation: slideUpFade 0.5s cubic-bezier(0.16, 1, 0.3, 1) both; box-shadow: 0 4px 15px rgba(0,0,0,0.04); }
+body.dark-theme .asset-card { background: rgba(30, 30, 40, 0.4); box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
+.asset-card:hover { transform: translateY(-6px); box-shadow: 0 16px 32px rgba(0,0,0,0.08); z-index: 2; }
+body.dark-theme .asset-card:hover { box-shadow: 0 16px 32px rgba(0,0,0,0.5); }
+.asset-card.selected { box-shadow: 0 0 0 2px var(--bg-user-msg), 0 16px 32px rgba(0, 122, 255, 0.2); transform: translateY(-6px); }
+body.dark-theme .asset-card.selected { box-shadow: 0 0 0 2px var(--shen-color), 0 16px 32px rgba(94, 92, 230, 0.3); }
 .bulk-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 10; cursor: pointer; background: transparent; }
 .checkbox-icon { position: absolute; top: 12px; left: 12px; width: 24px; height: 24px; border-radius: 50%; background: rgba(0,0,0,0.5); border: 2px solid white; display: flex; align-items: center; justify-content: center; color: transparent; transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1); z-index: 11; pointer-events: none;}
 .asset-card.selected .checkbox-icon { background: var(--bg-user-msg); border-color: var(--bg-user-msg); color: white; transform: scale(1.1); }
