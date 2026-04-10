@@ -12,7 +12,6 @@ body.dark-theme {
     --bg-input: #2c2c2e; --bg-hover: #3a3a3c; --bg-user-msg: #0a84ff; 
     --bg-bot-msg: #2c2c2e; --shen-color: #0a84ff; --danger-color: #ff453a; 
 }
-body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: var(--bg-body); color: var(--text-main); display: flex; height: 100vh; margin: 0; overflow: hidden; }
 
 /* 🌟 全局滚动条美化 */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -79,9 +78,11 @@ body.dark-theme .bot-msg .msg-actions { border-top-color: rgba(255, 255, 255, 0.
 .msg-action-btn:hover { background: rgba(128, 128, 128, 0.2); opacity: 1; }
 .delete-action:hover { color: var(--danger-color); opacity: 1; }
 
-.input-section { padding: 16px 24px; display: flex; gap: 12px; border-top: 1px solid rgba(0,0,0,0.05); align-items: center; transition: 0.3s; position: relative; background: var(--bg-container); box-shadow: 0 -4px 20px rgba(0,0,0,0.03); z-index: 5; }
-body.dark-theme .input-section { border-top: 1px solid rgba(255,255,255,0.05); box-shadow: 0 -4px 20px rgba(0,0,0,0.2); }
-textarea { flex: 1; padding: 14px; border-radius: 16px; border: 1px solid transparent; background: var(--bg-input); color: var(--text-main); resize: none; outline: none; height: 100px; font-family: monospace; box-sizing: border-box; transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); box-shadow: inset 0 2px 4px rgba(0,0,0,0.02); line-height: 1.5;}
+.input-section { margin: 0 auto 24px auto; max-width: 850px; width: 90%; padding: 12px 20px; display: flex; gap: 12px; border: 1px solid rgba(0,0,0,0.08); border-radius: 24px; align-items: center; transition: 0.3s; position: relative; background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); box-shadow: 0 10px 30px rgba(0,0,0,0.05), 0 1px 3px rgba(0,0,0,0.02); z-index: 5; }
+body.dark-theme .input-section { border: 1px solid rgba(255,255,255,0.1); background: rgba(28, 28, 30, 0.75); box-shadow: 0 10px 30px rgba(0,0,0,0.3), 0 1px 3px rgba(0,0,0,0.1); }
+textarea { flex: 1; padding: 14px 10px; border-radius: 12px; border: none; background: transparent; color: var(--text-main); resize: none; outline: none; height: 60px; min-height: 60px; max-height: 200px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 1.05rem; box-sizing: border-box; transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); line-height: 1.6; scrollbar-width: none; }
+textarea:focus { box-shadow: none; }
+textarea::-webkit-scrollbar { display: none; }
 textarea:focus { border-color: var(--bg-user-msg); box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1); }
 .input-tools-row { display: flex; flex-direction: column; gap: 8px; flex-shrink: 0; }
 .mobile-only-tools { display: none; }
@@ -97,7 +98,8 @@ textarea:focus { border-color: var(--bg-user-msg); box-shadow: 0 0 0 3px rgba(0,
 .hub-wrapper { width: 100%; display: flex; justify-content: center; }
 .hub-icon-big { width: 64px; height: 64px; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 40px; margin-bottom: 24px; transition: transform 0.3s; cursor: pointer;}
 .hub-icon-big:hover { transform: rotate(10deg) scale(1.1); }
-.hub-title { font-size: 28px; font-weight: 500; margin-bottom: 40px; letter-spacing: 1px; }
+.hub-title { font-size: 34px; font-weight: 700; margin-bottom: 40px; letter-spacing: 0.5px; background: linear-gradient(135deg, #007AFF 0%, #a200ff 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-align: center; }
+body.dark-theme .hub-title { background: linear-gradient(135deg, #0a84ff 0%, #bf5af2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
 .hub-new-btn { background: var(--bg-user-msg); color: white; padding: 12px 32px; border-radius: 24px; border: none; cursor: pointer; font-size: 1rem; margin-bottom: 40px; transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); font-weight: 600; box-shadow: 0 4px 12px rgba(0, 122, 255, 0.3);}
 .hub-new-btn:hover { background: #0056b3; transform: translateY(-3px); box-shadow: 0 6px 16px rgba(0, 122, 255, 0.4); }
 .hub-new-btn:active { transform: translateY(0); }
@@ -394,3 +396,82 @@ strong { color: var(--text-main); font-weight: 700; }
   80% { filter: hue-rotate(-45deg); }
 }
 
+/* ================== 圆形旋转主题切换按钮 (Sun & Moon) ================== */
+.round-theme-switch {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  border-radius: 50%;
+  position: relative;
+  place-items: center;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+  line-height: 1;
+  overflow: hidden;
+  margin-left: 12px;
+  flex-shrink: 0;
+}
+
+#round-checkbox-input {
+  display: none;
+}
+
+.round-theme-switch .icon {
+  grid-column: 1 / 1;
+  grid-row: 1 / 1;
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  z-index: 2;
+  transform-origin: center center;
+  transition: transform 500ms cubic-bezier(0.16, 1, 0.3, 1), opacity 300ms ease;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.round-theme-switch .icon--moon {
+  color: #212121;
+  background-color: #e8e8e8;
+  border-radius: 50%;
+}
+
+.round-theme-switch .icon--sun {
+  color: #e8e8e8;
+  background-color: #212121;
+  border-radius: 50%;
+}
+
+.round-theme-switch .icon--moon,
+.round-theme-switch .icon--sun {
+  transform: rotate(0deg) scale(0);
+  opacity: 0;
+}
+
+#round-checkbox-input:not(:checked) + .round-theme-switch .icon--sun {
+  transform: rotate(360deg) scale(1);
+  opacity: 1;
+}
+
+#round-checkbox-input:not(:checked) + .round-theme-switch .icon--moon {
+  transform: rotate(0deg) scale(0);
+  opacity: 0;
+}
+
+#round-checkbox-input:checked + .round-theme-switch .icon--moon {
+  transform: rotate(360deg) scale(1);
+  opacity: 1;
+}
+
+#round-checkbox-input:checked + .round-theme-switch .icon--sun {
+  transform: rotate(0deg) scale(0);
+  opacity: 0;
+}
+
+#round-checkbox-input:active + .round-theme-switch {
+  transform: scale(0.90);
+}
+
+.round-theme-switch .icon svg {
+  fill: currentColor !important;
+}
