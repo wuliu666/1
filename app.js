@@ -1898,32 +1898,32 @@ function checkAuth() {
 
 // 2. 动态劫持所有核心功能按钮 (没登入绝对点不了)
 const _oldCreateNewChat = window.createNewChat || createNewChat;
-createNewChat = function() { if(checkAuth()) _oldCreateNewChat(); };
+window.createNewChat = function() { if(checkAuth()) _oldCreateNewChat(); };
 
 const _oldCreateNewStoryboard = window.createNewStoryboard || createNewStoryboard;
-createNewStoryboard = function() { if(checkAuth()) _oldCreateNewStoryboard(); };
+window.createNewStoryboard = function() { if(checkAuth()) _oldCreateNewStoryboard(); };
 
 const _oldSendMessage = window.sendMessage || sendMessage;
-sendMessage = async function() { if(checkAuth()) await _oldSendMessage(); };
+window.sendMessage = async function() { if(checkAuth()) await _oldSendMessage(); };
 
 const _oldSendImageGenMessage = window.sendImageGenMessage || sendImageGenMessage;
-sendImageGenMessage = async function() { if(checkAuth()) await _oldSendImageGenMessage(); };
+window.sendImageGenMessage = async function() { if(checkAuth()) await _oldSendImageGenMessage(); };
 
 const _oldHandleBatchAssetUpload = window.handleBatchAssetUpload || handleBatchAssetUpload;
-handleBatchAssetUpload = async function(input) { if(checkAuth()) await _oldHandleBatchAssetUpload(input); else input.value=''; };
+window.handleBatchAssetUpload = async function(input) { if(checkAuth()) await _oldHandleBatchAssetUpload(input); else input.value=''; };
 
 const _oldProcessToolImages = window.processToolImages || processToolImages;
-processToolImages = async function(mode) { if(checkAuth()) await _oldProcessToolImages(mode); };
+window.processToolImages = async function(mode) { if(checkAuth()) await _oldProcessToolImages(mode); };
 
 const _oldExecuteBulkDownload = window.executeBulkDownload || executeBulkDownload;
-executeBulkDownload = async function() { if(checkAuth()) await _oldExecuteBulkDownload(); };
+window.executeBulkDownload = async function() { if(checkAuth()) await _oldExecuteBulkDownload(); };
 
 const _oldExportToPDF = window.exportToPDF || exportToPDF;
-exportToPDF = function() { if(checkAuth()) _oldExportToPDF(); };
+window.exportToPDF = function() { if(checkAuth()) _oldExportToPDF(); };
 
 // 3. 拦截进入个人私密库
 const _oldSwitchChat = window.switchChat || switchChat;
-switchChat = function(id) {
+window.switchChat = function(id) {
     if (id === PERSONAL_ASSET_ID && !checkAuth()) { _oldSwitchChat(HUB_ID); return; }
     _oldSwitchChat(id);
 };

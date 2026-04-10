@@ -355,9 +355,9 @@ def check_auth_global():
     if request.path.startswith('/api/') or request.path.startswith('/admin/') or request.path == '/chat':
         user_key = None
         if request.is_json:
-            user_key = request.json.get('user_key') or request.json.get('admin_key')
+            user_key = request.json.get('user_key') or request.json.get('admin_key') or request.json.get('password')
         elif request.form:
-            user_key = request.form.get('user_key')
+            user_key = request.form.get('user_key') or request.form.get('password')
         
         if not user_key:
             return jsonify({"error": "非法请求：缺少安全凭证", "code": "AUTH_FAILED"}), 401
